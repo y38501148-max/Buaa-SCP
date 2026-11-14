@@ -131,30 +131,54 @@ class ScpApp : Application() {
     /**
      * 用现有凭据验证业务会话是否可用。
      *
-     * 判定标准：`openCardPay` 返回 success=true 且带 data；未绑卡（缺 cardPay）
-     * 仍视为已认证，只是没有余额信息。
+     * 不能用 `openCardPay` 作为唯一判据：它依赖“缴费时段”，夜间/维护期会返回
+     * `success=false, message=不在缴费期间`，但会话其实是有效的。
+     * 因此先用不依赖缴费时段的卡务读接口 `openCardReportLoss` 验证；
+     * 只有明确 401/403/会话失效才判定登录失败。
      */
-    suspend fun validateSession(): Boolean = try {
-        val root = api.openCardPay()
-        val data = root.optJSONObject("data")
-        if (data == null) {
-            LogBus.warn("会话校验：openCardPay 返回缺少 data 字段")
-            false
-        } else {
-            val cardPay = data.optJSONObject("cardPay")
-            if (cardPay == null) {
-                LogBus.warn("会话校验：未返回 cardPay（可能未绑卡），但仍视为已认证")
-            } else {
-                LogBus.step("会话校验通过，余额 ${cardPay.optString("cardbal", "?")} 元")
+    suspend fun validateSession(): Boolean {
+        try {
+            api.reportLossInfo()
+            LogBus.step("会话校验通过（卡务读接口）")
+            return true
+        } catch (e: ApiException) {
+            if (e.authExpired) {
+                LogBus.warn("会话校验未通过：${e.message}")
+                return false
             }
-            true
+            LogBus.warn("卡务读接口业务失败（${e.message}），尝试充值初始化接口")
+        } catch (e: Exception) {
+            LogBus.warn("会话校验异常：${e.javaClass.simpleName} ${e.message}")
         }
-    } catch (e: ApiException) {
-        LogBus.warn("会话校验未通过：${e.message}")
-        false
-    } catch (e: Exception) {
-        LogBus.warn("会话校验异常：${e.javaClass.simpleName} ${e.message}")
-        false
+
+        return try {
+            val root = api.openCardPay()
+            val data = root.optJSONObject("data")
+            if (data != null) {
+                val cardPay = data.optJSONObject("cardPay")
+                if (cardPay == null) {
+                    LogBus.warn("会话校验：未返回 cardPay（可能未绑卡），但仍视为已认证")
+                } else {
+                    LogBus.step("会话校验通过，余额 ${cardPay.optString("cardbal", "?")} 元")
+                }
+                true
+            } else {
+                LogBus.step("充值初始化返回业务提示，仍视为已认证")
+                true
+            }
+        } catch (e: ApiException) {
+            // “不在缴费期间”等业务失败说明请求已到达业务层，Cookie 有效。
+            if (e.authExpired) {
+                LogBus.warn("会话校验未通过：${e.message}")
+                false
+            } else {
+                LogBus.step("充值初始化业务失败（${e.message}），会话仍有效")
+                true
+            }
+        } catch (e: Exception) {
+            LogBus.warn("会话校验异常：${e.javaClass.simpleName} ${e.message}")
+            false
+        }
     }
 
     /**
