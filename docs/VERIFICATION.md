@@ -1,4 +1,63 @@
-# 验证记录（v0.5.0）
+# 验证记录
+
+## v0.6.0（2026-11-15）
+
+包名：`cn.edu.buaa.scp` · versionCode 11 · versionName `0.6.0` · 独立 release keystore
+
+### 1. 自动化测试
+
+```
+./gradlew :app:testDebugUnitTest
+→ 136 tests, 0 failed, 8 skipped
+```
+
+新增 / 更新：
+
+- `FinanceModelsTest`（22）：财务分页两种结构、金额分换算、按年月分组、年度、搜索、实发/应发/扣税合计；
+- `FinanceApiTest`（4）：财务登录跳转地址规范化（https 升级、去端口、相对地址、未知 host）；
+- `RechargeFailureTest`（17）：充值失败原因分类（缴费时段 / 会话失效 / 其它）与失败页 URL 解析；
+- `ModelsTest`：账单合并模型、`BillRecharge` 充值流水按月汇总、流水解析与分页。
+
+真实链路探针（`Live*Test`）默认跳过，沿用 v0.5.0 的本机网络环境。
+
+### 2. 构建
+
+- `./gradlew :app:assembleDebug` / `:app:assembleRelease` 均通过；
+- release APK：`app/build/outputs/apk/release/app-release.apk`（versionCode 11 / 0.6.0）。
+
+### 3. 模拟器（离线示例数据）
+
+| 项目 | 结果 |
+|---|---|
+| 底部导航 | ✅ 首页 / 账单 / 财务 / 设置，图标与标题正常 |
+| 首页快捷入口 | ✅ 账单 / 财务 / 充值 / 其他 |
+| 账单页 | ✅ 月份选择、消费/充值概览、消费分类、近半年充值、支出趋势、类型筛选与明细分页 |
+| 财务页 | ✅ 年度/全部筛选、搜索、实发合计、按月分组、记录详情弹窗 |
+| 设置 → 关于 | ✅ 仅保留版本号、GitHub 仓库、检查更新 |
+| 截图 | ✅ `docs/screenshot_home.png`、`screenshot_bills.png`、`screenshot_finance.png`（均为示例数据） |
+
+### 4. 真机（iQOO 15 / Android 16）
+
+0.6.0 release 以同签名覆盖安装到 0.5.0 之上，原有登录态保留。
+
+| 项目 | 结果 |
+|---|---|
+| 覆盖安装 | ✅ versionCode 11 / `0.6.0`，未重新登录即可进入首页 |
+| 财务查询 | ✅ 真实链路跑通：统一认证 → icw 财务门户 → 财务查询系统，读到本人收入记录并正常按月分组 |
+| 充值金额口径 | ✅ 定位并修复：官方 `queryChartList` 返回「开放平台服务异常」拿不到 chartId；`queryRechargeGroupByMonth` 返回的逐月金额与消费趋势完全一致（消费口径）。改为按 `queryCardSelfTradeList`（`tradetype=2`）的充值流水按月汇总；修复后真机概览「消费」「充值」显示不同金额，充值卡片按月笔数与充值明细一致 |
+| 概览排版 | ✅ 消费 / 充值标签与金额顶对齐；充值不再显示笔数，避免两列高度不一致 |
+| 缴费时段外提示 | ⚠️ 当前处于缴费时段，未能在真机复现「不在缴费期间」；已用单元测试覆盖分类逻辑与服务端真实报文（`不在缴费期间`、`未认证的请求`） |
+| 更新检查 | ✅ 当前 GitHub latest 仍为 0.5.0，手动检查提示已是最新版本（符合预期；发布 v0.6.0 后旧版本会收到更新弹窗） |
+
+### 5. 未覆盖 / 待发布后验证
+
+- 财务记录超过 100 条时的多页读取（本次账号 16 条）；
+- 发布 v0.6.0 Release 后，从 0.5.0 发起的应用内更新下载、校验与安装流程；
+- 非缴费时段真机提示（需等校方缴费入口关闭时验证）。
+
+---
+
+## v0.5.0（历史）
 
 日期：2026-11-14
 包名：`cn.edu.buaa.scp` · versionCode 10 · versionName `0.5.0`

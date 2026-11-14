@@ -133,6 +133,23 @@ GET https://www.cc-pay.cn/login?channel=BUAASSO
 
 充值页顶部不再显示说明横幅，刷新改到 Toolbar 的刷新按钮。
 
+### 6.1 失败原因：不在缴费时段 ≠ 会话失效
+
+官方充值页在**非缴费时段**会返回业务失败，而不是会话失效：
+
+- `POST /card/cardpay/openCardPay` 返回 `success:false, message:不在缴费期间`；
+- 充值页随后跳转 `/pages/common/fail/fail?data={"title":"页面错误","message":"不在缴费期间"}`；
+- 真正未认证时是 HTTP 401/403，页面跳 `/pages/common/error/error?message=未认证的请求，请认证后访问`。
+
+v0.6.0 起（`ui/RechargeActivity.kt` + `net/RechargeFailure.kt`）：
+
+1. 打开 WebView **前**先用 `openCardPay` 预检：
+   - 「不在缴费期间」→ 直接提示「当前不在校园卡缴费时段，充值入口暂未开放」，不加载网页；
+   - 会话失效 → 先用 `CASTGC` 免密续期一次，仍失败才提示「登录已失效，请返回重新登录后再试」；
+   - 其它业务错误 / 网络异常 → 记录日志并回退打开官方页面。
+2. 页面加载后命中 fail / error 页时，解析 URL 里的 `data.message` 或 `message` 再分类，
+   不再把所有失败页都显示成「会话已失效」。
+
 客户端**不会**：
 
 - 读取或保存校园卡密码；
@@ -144,7 +161,8 @@ GET https://www.cc-pay.cn/login?channel=BUAASSO
 - 官方页面路由/接口随校方发版可能变化；
 - 部分账号的 `jsonmsg` 显示「暂未开通」，这是校方渠道状态，不是客户端问题；
 - WebView 的第三方 Cookie/支付 App 跳转行为受 ROM 与支付 App 版本影响；
-- 会话过期后 WebView 不会自动续期，需要返回 App 重新登录。
+- 会话过期后 WebView 不会自动续期，需要返回 App 重新登录；
+- 「不在缴费期间」由校方缴费入口的时段控制，客户端只做提示，不会绕过。
 
 ## 8. 网费充值（v0.5.0）
 
