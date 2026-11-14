@@ -1,0 +1,17 @@
+{
+  "resultData": {
+    "billList": [
+      {
+        "txamt": 1000,
+        "txdate": "2026-06",
+        "countnum": 1
+      },
+      {
+        "txamt": 5000,
+        "txdate": "2026-09",
+        "countnum": 2
+      }
+    ]
+  },
+  "success": true
+}

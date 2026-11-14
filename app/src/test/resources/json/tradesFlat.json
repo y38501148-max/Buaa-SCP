@@ -1,0 +1,13 @@
+{
+  "data": {
+    "data": [
+      {"summary":"持卡人消费","poscode":"1803","journo":"1","id":"1","txamt":"-1680","txdate":"2026-11-13 11:31:48","mername":"第一食堂","txname":"持卡人消费"},
+      {"summary":"持卡人消费","poscode":"1913","journo":"2","id":"2","txamt":"-2818","txdate":"2026-11-06 14:57:03","mername":"烘焙坊","txname":"持卡人消费"},
+      {"summary":"持卡人消费","poscode":"1802","journo":"3","id":"3","txamt":"-1180","txdate":"2026-11-05 18:28:32","mername":"第一食堂","txname":"持卡人消费"},
+      {"summary":"持卡人消费","poscode":"1816","journo":"4","id":"4","txamt":"-900","txdate":"2026-11-05 18:12:56","mername":"第一食堂","txname":"持卡人消费"},
+      {"summary":"持卡人消费","poscode":"1816","journo":"5","id":"5","txamt":"-1480","txdate":"2026-11-05 18:12:35","mername":"第一食堂","txname":"持卡人消费"}
+    ]
+  },
+  "success": true,
+  "message": "成功"
+}

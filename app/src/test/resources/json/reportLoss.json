@@ -1,0 +1,10 @@
+{
+  "data": {
+    "idserial": "20241234",
+    "cardid": "1002003004",
+    "accstatusStr": "正常",
+    "username": "张同学"
+  },
+  "success": true,
+  "url": "/pages/card/cardLoss/cardLoss"
+}

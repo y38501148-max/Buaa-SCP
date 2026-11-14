@@ -1,0 +1,17 @@
+{
+  "resultData": {
+    "sumamt": "80.58",
+    "billList": [
+      {
+        "name": "食堂消费:60.58元",
+        "value": "60.58"
+      },
+      {
+        "name": "超市消费:20.00元",
+        "value": "20.00"
+      }
+    ]
+  },
+  "success": true,
+  "message": "成功"
+}

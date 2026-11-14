@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="buaa_blue">#0A4CB4</color>
+    <color name="buaa_blue_dark">#083A8C</color>
+    <color name="buaa_blue_soft">#2F6FE0</color>
+    <color name="buaa_blue_light">#E9F0FE</color>
+
+    <color name="white">#FFFFFF</color>
+    <color name="bg">#F4F6FA</color>
+    <color name="surface">#FFFFFF</color>
+
+    <color name="text_primary">#1B1F27</color>
+    <color name="text_secondary">#6B7280</color>
+    <color name="text_hint">#9AA3AF</color>
+
+    <color name="green">#16A34A</color>
+    <color name="red">#DC2626</color>
+    <color name="orange">#D97706</color>
+    <color name="divider">#E5E9F2</color>
+
+    <color name="ic_launcher_background">#0A4CB4</color>
+</resources>

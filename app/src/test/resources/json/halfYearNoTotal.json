@@ -1,0 +1,9 @@
+{
+  "resultData": {
+    "billList": [
+      {"txamt": 1000, "txdate": "2026-06"},
+      {"txamt": 5000, "txdate": "2026-09"}
+    ]
+  },
+  "success": true
+}

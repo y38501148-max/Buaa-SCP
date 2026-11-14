@@ -1,0 +1,23 @@
+{
+  "success": true,
+  "data": {
+    "cardinfo": {
+      "idserial": "20241234",
+      "cardbal": "123.45",
+      "accstatusStr": "正常"
+    },
+    "pcodeCard": "BKS",
+    "messageflag": "1",
+    "messagenotice": [
+      {
+        "title": "开学充值提醒",
+        "content": "请及时充值"
+      },
+      {
+        "name": "余额不足提醒"
+      }
+    ],
+    "userType": "6",
+    "idtype": "0"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "resultData": {
+    "totalpage": "3",
+    "rows": [
+      {
+        "mername": "学一食堂",
+        "txdate": "2026-11-12 12:30:00",
+        "txamt": "-1230"
+      },
+      {
+        "mername": "校园充值",
+        "txdate": "2026-11-10 09:00:00",
+        "txamt": "5000"
+      },
+      {
+        "mername": "咖啡店",
+        "txdate": "2026-11-09 15:02:00",
+        "txamt": "-355"
+      }
+    ]
+  },
+  "success": true
+}

@@ -1,0 +1,30 @@
+# Gradle / Android
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# 签名材料（绝不提交）
+keystore/
+keystore.properties
+*.jks
+*.keystore
+
+# 构建产物
+dist/*.apk
+*.apk
+
+# 含个人数据的本地截图（不提交）
+docs/screenshot_device_*.png
+docs/screenshot_log.png
+docs/private/
+
+# Gradle / Kotlin 缓存
+.kotlin/
+
+# 系统
+.DS_Store
