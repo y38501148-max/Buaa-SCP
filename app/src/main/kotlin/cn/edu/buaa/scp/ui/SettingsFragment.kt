@@ -129,7 +129,8 @@ class SettingsFragment : ScpFragment() {
             R.drawable.ic_wifi,
             if (zfw == null) "登录校园网" else "打开校园网",
         ) {
-            startActivity(Intent(requireContext(), ZfwActivity::class.java))
+            val target = if (zfw == null) ZfwLoginActivity::class.java else ZfwActivity::class.java
+            startActivity(Intent(requireContext(), target))
         }
         if (zfw != null) {
             Ui.divider(card, 50f)

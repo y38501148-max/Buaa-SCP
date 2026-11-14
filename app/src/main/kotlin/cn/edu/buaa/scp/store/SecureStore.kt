@@ -98,6 +98,12 @@ class SecureStore(context: Context) {
         prefs.edit().putString(KEY_STUDENT, studentId.orEmpty()).apply()
     }
 
+    fun rememberedZfwUsername(): String = prefs.getString(KEY_ZFW_USERNAME, "").orEmpty()
+
+    fun setRememberedZfwUsername(username: String?) {
+        prefs.edit().putString(KEY_ZFW_USERNAME, username.orEmpty()).apply()
+    }
+
     private fun encrypt(plain: String): String {
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, secretKey())
@@ -145,6 +151,7 @@ class SecureStore(context: Context) {
         const val KEY_SESSION = "session_blob"
         const val KEY_ZFW_SESSION = "zfw_session_blob"
         const val KEY_STUDENT = "remembered_student_id"
+        const val KEY_ZFW_USERNAME = "remembered_zfw_username"
         const val KEY_ALIAS = "scp.session.key.v1"
         const val GCM_PREFIX = "gcm:"
         const val PLAIN_PREFIX = "plain:"

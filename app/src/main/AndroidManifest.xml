@@ -62,5 +62,11 @@
             android:name=".ui.ZfwActivity"
             android:configChanges="orientation|screenSize|keyboardHidden"
             android:exported="false" />
+
+        <activity
+            android:name=".ui.ZfwLoginActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
     </application>
 </manifest>

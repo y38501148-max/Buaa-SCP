@@ -328,8 +328,13 @@ class HomeFragment : ScpFragment() {
     }
 
     private fun openZfw(recharge: Boolean) {
-        val intent = Intent(requireContext(), ZfwActivity::class.java)
-        if (recharge) intent.putExtra(ZfwActivity.EXTRA_RECHARGE, true)
+        val intent = if (app.hasZfwSession()) {
+            Intent(requireContext(), ZfwActivity::class.java)
+                .putExtra(ZfwActivity.EXTRA_RECHARGE, recharge)
+        } else {
+            Intent(requireContext(), ZfwLoginActivity::class.java)
+                .putExtra(ZfwLoginActivity.EXTRA_RECHARGE, recharge)
+        }
         startActivity(intent)
     }
 

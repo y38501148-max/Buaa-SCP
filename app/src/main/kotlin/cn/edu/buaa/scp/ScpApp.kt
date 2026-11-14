@@ -9,6 +9,7 @@ import cn.edu.buaa.scp.net.CookieJar
 import cn.edu.buaa.scp.net.HttpEngine
 import cn.edu.buaa.scp.net.PortalApi
 import cn.edu.buaa.scp.net.ZfwApi
+import cn.edu.buaa.scp.net.ZfwAuth
 import cn.edu.buaa.scp.store.SecureStore
 import cn.edu.buaa.scp.store.SessionData
 import cn.edu.buaa.scp.store.ZfwSession
@@ -39,6 +40,7 @@ class ScpApp : Application() {
     val zfwJar: CookieJar by lazy { CookieJar() }
     val zfwHttp: HttpEngine by lazy { HttpEngine(zfwJar) }
     val zfwApi: ZfwApi by lazy { ZfwApi(zfwHttp) }
+    val zfwAuth: ZfwAuth by lazy { ZfwAuth(zfwHttp) }
 
     @Volatile
     var zfwSession: ZfwSession? = null

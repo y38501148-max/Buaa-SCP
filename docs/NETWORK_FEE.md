@@ -42,11 +42,16 @@ GET https://it.buaa.edu.cn/personal/frontend/data/items?type=personal_data
 - 未登录访问 `zfw.buaa.edu.cn/home`、`/pay/card` 都会 302 到登录页；
 - 登录页是深澜（SRun）系统，账号为校园网账号，密码与统一身份认证**不同**；
 - 密码使用页面每次随机下发的 RSA 公钥加密，部分账号还会触发短信验证码；
-- 因此客户端不在原生层复刻登录，而是用 WebView 打开官方登录页，用户手动完成一次；
-- 登录后通过 `CookieManager.getCookie("https://zfw.buaa.edu.cn/")` 读取会话 Cookie（含 HttpOnly），
-  用 AndroidKeyStore 加密保存；之后原生 `GET /home` 只需 `PHPSESSID_8800` 即可。
+- v0.5.0 起使用**原生登录页**（`ui/ZfwLoginActivity.kt`）：
+  - 从官方登录页取每次随机下发的 1024-bit RSA 公钥与 CSRF token；
+  - 密码用 `RSA/ECB/PKCS1Padding` 加密后提交，客户端不保存密码；
+  - 支持图形验证码与短信二次验证；
+  - 失败/风控/页面改版时可一键回退到学校官方 WebView 登录；
+- 登录成功后把 zfw 域 Cookie（含 HttpOnly 的 `PHPSESSID_8800`）用 AndroidKeyStore 加密保存；
+  之后原生 `GET /home` 只需该 Cookie 即可，重启 App 自动复用。
 
-实现见 `ui/ZfwActivity.kt`、`net/ZfwApi.kt`、`store/ZfwSession.kt`。
+实现见 `net/ZfwAuth.kt`、`ui/ZfwLoginActivity.kt`、`net/ZfwApi.kt`、`store/ZfwSession.kt`。
+网页登录兜底仍保留在 `ui/ZfwActivity.kt`。
 
 ## 4. /home 解析
 
