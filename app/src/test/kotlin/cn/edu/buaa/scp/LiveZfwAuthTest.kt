@@ -50,4 +50,14 @@ class LiveZfwAuthTest {
         val captcha = auth.captchaImage()
         assertTrue("验证码图片为空", captcha.size > 500)
     }
+
+    @Test
+    fun validateUserRejectsFakeCredentialsThroughRealProtocol() = runBlocking {
+        val auth = ZfwAuth(HttpEngine(CookieJar()))
+        val page = auth.loadLoginPage() ?: return@runBlocking
+        val result = auth.validateUser(page, "00000000", "not-a-real-password", "")
+        assertTrue("伪造账号不应登录成功", !result.success)
+        assertTrue("服务端未返回错误信息，协议可能未走通", result.message.isNotBlank())
+        println("校验结果：${result.message} / captcha=${result.captchaRequired}")
+    }
 }
