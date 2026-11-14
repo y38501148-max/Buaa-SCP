@@ -54,6 +54,7 @@ class ZfwActivity : AppCompatActivity() {
     private var cashierId = ""
     private var statusCheckAttempts = 0
     private var successHandled = false
+    private var injectedCastgc = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -279,6 +280,7 @@ class ZfwActivity : AppCompatActivity() {
                 "https://${CasAuth.SSO_HOST}",
                 "CASTGC=$castgc; path=/; Secure; HttpOnly",
             )
+            injectedCastgc = true
         }
         manager.flush()
 
@@ -413,6 +415,15 @@ class ZfwActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        // 与校园卡充值页一致：退出时清掉注入的 CASTGC，App 自己的加密会话不受影响。
+        if (injectedCastgc) {
+            val manager = CookieManager.getInstance()
+            manager.setCookie(
+                "https://${CasAuth.SSO_HOST}",
+                "CASTGC=; Max-Age=0; path=/",
+            )
+            manager.flush()
+        }
         binding.webView.stopLoading()
         binding.webView.loadUrl("about:blank")
         binding.webView.destroy()
