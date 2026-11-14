@@ -30,6 +30,9 @@ object UpdateUi {
 
     private const val PREFS = "update"
     private const val KEY_LAST_CHECK = "last_check"
+    private const val KEY_CHECKED_VERSION = "checked_version"
+    private const val KEY_PENDING_VERSION = "pending_version"
+    private const val KEY_SKIPPED_VERSION = "skipped_version"
     private const val DAY_MS = 24L * 60 * 60 * 1000
 
     @Volatile
@@ -38,13 +41,22 @@ object UpdateUi {
     @Volatile
     private var dialogShowing = false
 
+    /** 启动时自动检查：每个应用版本首次启动 + 之后每天一次；检查失败不占用当次机会。 */
     fun autoCheck(activity: AppCompatActivity) {
         if (ScpApp.get(activity).demoMode) return
         val prefs = activity.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()
-        if (now - prefs.getLong(KEY_LAST_CHECK, 0L) < DAY_MS) return
-        prefs.edit().putLong(KEY_LAST_CHECK, now).apply()
+        val sameVersion = prefs.getString(KEY_CHECKED_VERSION, "") == BuildConfig.VERSION_NAME
+        if (sameVersion && now - prefs.getLong(KEY_LAST_CHECK, 0L) < DAY_MS) return
         check(activity, manual = false)
+    }
+
+    /** 设置页展示的待更新版本；没有则返回 null。 */
+    fun pendingVersion(context: Context): String? {
+        val version = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_PENDING_VERSION, null)
+            ?: return null
+        return version.takeIf { UpdateManager.isNewer(it, BuildConfig.VERSION_NAME) }
     }
 
     fun check(activity: AppCompatActivity, manual: Boolean) {
@@ -59,18 +71,29 @@ object UpdateUi {
             }
             checking = false
             if (activity.isFinishing || activity.isDestroyed) return@launch
+            if (result.isFailure) {
+                if (manual) toast(activity, "检查更新失败，请检查网络")
+                return@launch
+            }
+            val prefs = activity.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            prefs.edit()
+                .putLong(KEY_LAST_CHECK, System.currentTimeMillis())
+                .putString(KEY_CHECKED_VERSION, BuildConfig.VERSION_NAME)
+                .apply()
             val info = result.getOrNull()
             if (info == null) {
-                if (manual) toast(
-                    activity,
-                    if (result.isSuccess) "暂无可用版本" else "检查更新失败，请检查网络",
-                )
+                prefs.edit().remove(KEY_PENDING_VERSION).apply()
+                if (manual) toast(activity, "暂无可用版本")
                 return@launch
             }
             if (!UpdateManager.isNewer(info.version, BuildConfig.VERSION_NAME)) {
+                prefs.edit().remove(KEY_PENDING_VERSION).apply()
                 if (manual) toast(activity, "已是最新版本 v${BuildConfig.VERSION_NAME}")
                 return@launch
             }
+            prefs.edit().putString(KEY_PENDING_VERSION, info.version).apply()
+            val skipped = prefs.getString(KEY_SKIPPED_VERSION, null)
+            if (!manual && skipped == info.version) return@launch
             showUpdateDialog(activity, info)
         }
     }
@@ -83,17 +106,19 @@ object UpdateUi {
         } else {
             ""
         }
-        val notes = info.notes
-            .replace("\r", "")
-            .take(900)
-            .ifBlank { "包含界面与稳定性改进。" }
+        val notes = info.notes.replace("\r", "").take(900)
+        val message = "当前 v${BuildConfig.VERSION_NAME}$size" + if (notes.isBlank()) "" else "\n\n$notes"
         MaterialAlertDialogBuilder(activity)
             .setTitle("发现新版本 v${info.version}")
-            .setMessage("当前 v${BuildConfig.VERSION_NAME}$size\n\n$notes")
+            .setMessage(message)
             .setNegativeButton("稍后") { _, _ -> dialogShowing = false }
-            .setNeutralButton("浏览器打开") { _, _ ->
+            .setNeutralButton("跳过此版本") { _, _ ->
                 dialogShowing = false
-                openRelease(activity, info)
+                activity.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                    .edit()
+                    .putString(KEY_SKIPPED_VERSION, info.version)
+                    .remove(KEY_PENDING_VERSION)
+                    .apply()
             }
             .setPositiveButton("下载并安装") { _, _ ->
                 dialogShowing = false

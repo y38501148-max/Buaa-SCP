@@ -2,6 +2,7 @@ package cn.edu.buaa.scp.ui
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.SystemClock
 import android.view.Gravity
 import android.widget.LinearLayout
@@ -166,15 +167,23 @@ class SettingsFragment : ScpFragment() {
         val about = Ui.addSection(body, "关于")
         val version = Ui.addKv(about, "版本", BuildConfig.VERSION_NAME)
         version.setOnClickListener { onVersionTap() }
-        Ui.addKv(about, "数据来源", "m.icw / zfw / it.buaa.edu.cn")
         Ui.divider(about, 50f)
-        Ui.actionRow(about, R.drawable.ic_refresh, "检查更新") {
+        Ui.actionRow(about, R.drawable.ic_code, "GitHub 仓库") { openRepository() }
+        Ui.divider(about, 50f)
+        val pending = UpdateUi.pendingVersion(context)
+        Ui.actionRow(
+            about,
+            R.drawable.ic_refresh,
+            "检查更新",
+            value = if (pending == null) "" else "v$pending",
+        ) {
             (activity as? AppCompatActivity)?.let { UpdateUi.check(it, manual = true) }
         }
-        about.addView(
-            Ui.text(context, "非官方客户端，仅用于本人账号。", 11.5f, R.color.text_hint),
-            Ui.rowParams(context, 12f),
-        )
+    }
+
+    private fun openRepository() {
+        runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(GITHUB_URL))) }
+            .onFailure { Toast.makeText(requireContext(), "无法打开浏览器", Toast.LENGTH_SHORT).show() }
     }
 
     /** 隐藏入口：3 秒内连点版本号 7 次打开运行日志。 */
@@ -191,6 +200,10 @@ class SettingsFragment : ScpFragment() {
 
     private fun openRecharge() {
         startActivity(Intent(requireContext(), RechargeActivity::class.java))
+    }
+
+    private companion object {
+        const val GITHUB_URL = "https://github.com/y38501148-max/Buaa-SCP"
     }
 
     private fun runSelfCheck() {
