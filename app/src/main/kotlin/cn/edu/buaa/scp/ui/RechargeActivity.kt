@@ -23,7 +23,11 @@ import androidx.lifecycle.lifecycleScope
 import cn.edu.buaa.scp.R
 import cn.edu.buaa.scp.ScpApp
 import cn.edu.buaa.scp.databinding.ActivityRechargeBinding
+import cn.edu.buaa.scp.net.ApiException
 import cn.edu.buaa.scp.net.CasAuth
+import cn.edu.buaa.scp.net.RechargeFailure
+import cn.edu.buaa.scp.net.RechargeFailureKind
+import cn.edu.buaa.scp.net.RechargeFailureParser
 import cn.edu.buaa.scp.net.SelfCheck
 import cn.edu.buaa.scp.util.LogBus
 import kotlinx.coroutines.CancellationException
@@ -133,10 +137,18 @@ class RechargeActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 binding.progress.visibility = View.GONE
-                if (url != null && url.contains("/pages/common/fail/fail")) {
-                    showState("充值页会话已失效，请返回重新登录后再试", action = true)
-                    return
+                if (successHandled) return
+                val failure = RechargeFailureParser.fromPageUrl(url) ?: return
+                // 缴费时段外重试无意义，只说明原因；会话失效/未知失败保留「重试」按钮。
+                if (failure.kind == RechargeFailureKind.NOT_IN_WINDOW) {
+                    LogBus.step("充值页提示：${failure.message}")
+                } else {
+                    LogBus.warn("充值页失败（${failure.kind}）：${failure.message}")
                 }
+                showState(
+                    failure.message,
+                    action = failure.kind != RechargeFailureKind.NOT_IN_WINDOW,
+                )
             }
 
             override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
@@ -181,15 +193,110 @@ class RechargeActivity : AppCompatActivity() {
                     return@launch
                 }
             }
-            openTarget(openid)
+            openWithPrecheck(openid)
         }
     }
 
+    /**
+     * 打开 WebView 前先用 openCardPay 预检：它既校验会话，也会在缴费时段外返回业务失败。
+     *
+     * - 成功 / 其它业务错误 / 非 ApiException（网络异常等）：回退打开官方页面（网页可能仍可用）；
+     * - 不在缴费时段：直接展示准确原因，不加载 WebView，会话保持正常；
+     * - 会话失效：免密续期后只重试一次，仍失效才提示重新登录。
+     */
+    private suspend fun openWithPrecheck(openid: String) {
+        if (app.demoMode) {
+            // debug 演示模式不连网，按原行为直接展示页面。
+            openTarget(openid)
+            return
+        }
+        val failure = precheckOpenCardPay()
+        if (failure == null) {
+            openTarget(app.openid().ifEmpty { openid })
+            return
+        }
+        when (failure.kind) {
+            RechargeFailureKind.NOT_IN_WINDOW -> explainFailure(failure, openid)
+
+            RechargeFailureKind.SESSION_EXPIRED -> recoverAndRetry(failure, openid)
+
+            RechargeFailureKind.OTHER -> {
+                LogBus.warn("充值预检返回业务错误（${failure.message}），回退打开官方充值页")
+                openTarget(openid)
+            }
+        }
+    }
+
+    /** 预检判定会话失效时，免密续期一次并重新预检；不会无限重试。 */
+    private suspend fun recoverAndRetry(failure: RechargeFailure, openid: String) {
+        LogBus.warn("充值预检判定会话失效（${failure.message}），尝试免密续期")
+        val recovered = try {
+            app.recoverSession()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            LogBus.warn("充值前恢复会话失败：${SelfCheck.describe(e)}")
+            false
+        }
+        val refreshed = app.openid().ifEmpty { openid }
+        if (!recovered) {
+            explainFailure(failure, refreshed)
+            return
+        }
+        val retry = precheckOpenCardPay()
+        if (retry == null) {
+            openTarget(refreshed)
+            return
+        }
+        when (retry.kind) {
+            RechargeFailureKind.NOT_IN_WINDOW -> explainFailure(retry, refreshed)
+            RechargeFailureKind.SESSION_EXPIRED -> explainFailure(retry, refreshed)
+            RechargeFailureKind.OTHER -> {
+                LogBus.warn("续期后充值预检仍返回业务错误（${retry.message}），回退打开官方充值页")
+                openTarget(refreshed)
+            }
+        }
+    }
+
+    /** 展示失败原因但不加载网页；Cookie/目标地址仍准备好，工具栏「刷新」可强制打开官方页。 */
+    private fun explainFailure(failure: RechargeFailure, openid: String) {
+        if (failure.kind == RechargeFailureKind.NOT_IN_WINDOW) {
+            LogBus.step("充值预检：${failure.message}，不加载充值页")
+        } else {
+            LogBus.warn("充值预检：${failure.message}")
+        }
+        if (prepareTarget(openid)) {
+            showState(failure.message, action = false)
+        }
+    }
+
+    /**
+     * 预检：openCardPay 成功返回 null；ApiException 交给 [RechargeFailureParser] 分类；
+     * 其它异常（网络等）记录日志后返回 null，由调用方回退打开官方页面。
+     */
+    private suspend fun precheckOpenCardPay(): RechargeFailure? = try {
+        app.api.openCardPay()
+        null
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: ApiException) {
+        RechargeFailureParser.fromOpenCardPay(e)
+    } catch (e: Exception) {
+        LogBus.warn("充值预检异常（${SelfCheck.describe(e)}），回退打开官方充值页")
+        null
+    }
+
     private fun openTarget(openid: String) {
+        if (!prepareTarget(openid)) return
+        if (!isFinishing) openPage()
+    }
+
+    /** 注入 WebView Cookie 并确定目标地址；返回 false 表示缺少校园卡会话。 */
+    private fun prepareTarget(openid: String): Boolean {
         val jsessionid = app.session?.jsessionid.orEmpty()
         if (jsessionid.isEmpty()) {
             showState("缺少校园卡会话，请返回重新登录", action = false)
-            return
+            return false
         }
         targetUrl = RechargePage.url(openid)
         val manager = CookieManager.getInstance()
@@ -205,7 +312,9 @@ class RechargeActivity : AppCompatActivity() {
             )
         }
         manager.flush()
-        if (!isFinishing) openPage()
+        // 已向 WebView 注入会话 Cookie：即使最终没加载页面，销毁时也必须清理。
+        loaded = true
+        return true
     }
 
     private fun openPage() {
