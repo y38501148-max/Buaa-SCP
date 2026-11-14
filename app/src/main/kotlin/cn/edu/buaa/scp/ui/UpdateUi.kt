@@ -91,6 +91,10 @@ object UpdateUi {
             .setTitle("发现新版本 v${info.version}")
             .setMessage("当前 v${BuildConfig.VERSION_NAME}$size\n\n$notes")
             .setNegativeButton("稍后") { _, _ -> dialogShowing = false }
+            .setNeutralButton("浏览器打开") { _, _ ->
+                dialogShowing = false
+                openRelease(activity, info)
+            }
             .setPositiveButton("下载并安装") { _, _ ->
                 dialogShowing = false
                 downloadAndInstall(activity, info)
@@ -168,7 +172,7 @@ object UpdateUi {
             download.fold(
                 onSuccess = { install(activity, it) },
                 onFailure = {
-                    if (!cancelled.get()) toast(activity, "下载失败：${it.message ?: "网络错误"}")
+                    if (!cancelled.get()) showDownloadError(activity, info, it)
                 },
             )
         }
@@ -206,6 +210,36 @@ object UpdateUi {
         }
         runCatching { activity.startActivity(intent) }
             .onFailure { toast(activity, "无法打开安装器：${it.message ?: "未知错误"}") }
+    }
+
+    private fun showDownloadError(activity: AppCompatActivity, info: UpdateInfo, error: Throwable) {
+        if (activity.isFinishing) return
+        val raw = error.message.orEmpty()
+        val friendly = if (raw.contains("CertPath", ignoreCase = true) ||
+            raw.contains("SSL", ignoreCase = true) ||
+            raw.contains("Trust anchor", ignoreCase = true)
+        ) {
+            "系统证书校验失败，无法直接下载。可以打开 Release 页面手动下载安装。"
+        } else {
+            "下载失败：${raw.ifBlank { "网络错误" }}"
+        }
+        MaterialAlertDialogBuilder(activity)
+            .setTitle("更新下载失败")
+            .setMessage(friendly)
+            .setNegativeButton("关闭", null)
+            .setPositiveButton("浏览器打开") { _, _ -> openRelease(activity, info) }
+            .show()
+    }
+
+    private fun openRelease(activity: AppCompatActivity, info: UpdateInfo) {
+        val url = info.htmlUrl.ifBlank {
+            "https://github.com/y38501148-max/Buaa-SCP/releases"
+        }
+        runCatching {
+            activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        }.onFailure {
+            toast(activity, "无法打开浏览器")
+        }
     }
 
     private fun toast(activity: AppCompatActivity, text: String) {

@@ -22,6 +22,7 @@ data class UpdateInfo(
     val apkUrl: String,
     val apkSize: Long,
     val checksumUrl: String?,
+    val htmlUrl: String,
 )
 
 data class DownloadResult(val file: File, val sha256: String)
@@ -88,6 +89,7 @@ object UpdateManager {
             apkUrl = apkUrl,
             apkSize = apkSize,
             checksumUrl = checksumUrl,
+            htmlUrl = json.optString("html_url"),
         )
     }
 
