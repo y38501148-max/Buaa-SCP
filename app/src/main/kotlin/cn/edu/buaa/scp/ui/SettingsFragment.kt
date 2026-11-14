@@ -39,6 +39,7 @@ class SettingsFragment : ScpFragment() {
 
         addProfile(context, session)
         addSessionSection(context, session)
+        addZfwSection(context)
         addActions(context)
         addAbout(context)
     }
@@ -95,6 +96,56 @@ class SettingsFragment : ScpFragment() {
         )
         Ui.addKv(card, "登录时间", Json.or(Json.time(session?.savedAt ?: 0L), "—"))
         Ui.addKv(card, "最近刷新", Json.or(Json.time(session?.lastSyncAt ?: 0L), "—"))
+    }
+
+
+    /** 校园网会话：与统一身份认证独立，首次使用需在 WebView 里单独登录。 */
+    private fun addZfwSection(context: Context) {
+        val zfw = app.zfwSession
+        val card = Ui.addSection(body, "校园网")
+        Ui.addKv(
+            card,
+            "登录状态",
+            if (zfw != null) "已登录" else "未登录",
+            if (zfw != null) R.color.green else R.color.orange,
+        )
+        if (zfw != null) {
+            Ui.addKv(card, "账号", Json.or(zfw.username, "—"))
+            Ui.addKv(card, "最近同步", Json.or(Json.time(zfw.lastSyncAt), "—"))
+        } else {
+            card.addView(
+                Ui.text(
+                    context,
+                    "校园网密码与统一身份认证密码不同，首次使用需要单独登录。",
+                    11.5f,
+                    R.color.text_hint,
+                ),
+                Ui.rowParams(context, 4f),
+            )
+        }
+        Ui.divider(card, 50f)
+        Ui.actionRow(
+            card,
+            R.drawable.ic_wifi,
+            if (zfw == null) "登录校园网" else "打开校园网",
+        ) {
+            startActivity(Intent(requireContext(), ZfwActivity::class.java))
+        }
+        if (zfw != null) {
+            Ui.divider(card, 50f)
+            Ui.actionRow(card, R.drawable.ic_logout, "退出校园网", danger = true) {
+                MaterialAlertDialogBuilder(requireContext())
+                    .setTitle("退出校园网")
+                    .setMessage("清除本机保存的校园网会话，下次查看网费需重新登录。")
+                    .setNegativeButton("取消", null)
+                    .setPositiveButton("退出") { _, _ ->
+                        app.clearZfwSession()
+                        app.requestHomeRefresh()
+                        refresh()
+                    }
+                    .show()
+            }
+        }
     }
 
     private fun addActions(context: Context) {

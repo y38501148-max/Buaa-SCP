@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <meta name="csrf-param" content="_csrf-8800">
+<meta name="csrf-token" content="TEST">
+    <title>首页</title>
+    <link href="/assets/35acb060/css/bootstrap.css" rel="stylesheet">
+<link href="/assets/38e269b2/css/kv-grid.css" rel="stylesheet">
+<link href="/assets/1ecc0b89/css/bootstrap-dialog-bs3.css" rel="stylesheet">
+<link href="/assets/38e269b2/css/jquery.resizableColumns.css" rel="stylesheet">
+<link href="/assets/38e269b2/css/kv-grid-expand.css" rel="stylesheet">
+<link href="/assets/52ad8587/css/bwizard.min.css" rel="stylesheet">
+<link href="/assets/82cd5560/sweetalert.css" rel="stylesheet">
+<link href="/assets/266d71b1/css/font-awesome.min.css" rel="stylesheet">
+<link href="/assets/4848fd83/src/assets/css/jquery.bootstrap-touchspin.min.css" rel="stylesheet">
+<link href="/css/AdminLTE.min.css" rel="stylesheet">
+<link href="/css/skin-blue.min.css" rel="stylesheet">
+<link href="/css/main.css" rel="stylesheet">
+<link href="/css/bootstrap-responsive.min.css" rel="stylesheet">
+<script src="/assets/dd23377b/jquery.js"></script>
+<script src="/assets/1ecc0b89/js/dialog.js"></script>
+<script src="/assets/f3d7682b/yii.js"></script>
+<!--[if lte IE 9]>
+<script src="/assets/a7e3ee09/respond.min.js"></script>
+<![endif]-->
+<!--[if lte IE 9]>
+<script src="/assets/a813359a/html5shiv.min.js"></script>
+<![endif]-->
+<script>var krajeeDialogDefaults_33719062 = {"alert":{"type":"type-info","title":"信息提示","buttonLabel":"<span class=\"glyphicon glyphicon-ok\"></span> 确定"},"confirm":{"type":"type-warning","title":"确认提示","btnOKClass":"btn-warning","btnOKLabel":"<span class=\"glyphicon glyphicon-ok\"></span> 确定","btnCancelLabel":"<span class=\"glyphicon glyphicon-ban-circle\"></span>  取消"},"prompt":{"draggable":false,"title":"信息提示","buttons":[{"label":"取消","icon":"glyphicon glyphicon-ban-circle","cssClass":"btn-default"},{"label":"确定","icon":"glyphicon glyphicon-ok","cssClass":"btn-primary"}],"closable":false},"dialog":{"draggable":true,"title":"信息提示","buttons":[{"label":"取消","icon":"glyphicon glyphicon-ban-circle","cssClass":"btn-default"},{"label":"确定","icon":"glyphicon glyphicon-ok","cssClass":"btn-primary"}]}};
+var krajeeDialog_6d7f2d25 = {"id":"w2"};
+var krajeeDialog=new KrajeeDialog(true,krajeeDialog_6d7f2d25,krajeeDialogDefaults_33719062);
+var kvExpandRow_eba08352 = {"gridId":"w3","hiddenFromExport":true,"detailUrl":"","onDetailLoaded":"","expandIcon":"<span class=\"glyphicon glyphicon-expand\"></span>","collapseIcon":"<span class=\"glyphicon glyphicon-collapse-down\"></span>","expandTitle":"展开","collapseTitle":"收起","expandAllTitle":"全部展开","collapseAllTitle":"全部收起","rowCssClass":"info","animationDuration":"slow","expandOneOnly":true,"enableRowClick":false,"enableCache":true,"rowClickExcludedTags":["A","BUTTON","INPUT"],"collapseAll":false,"expandAll":false,"extraData":[],"msgDetailLoading":"<small>Loading &hellip;</small>"};
+
+var krajeeDialog_7f94fe21 = {"id":"w4"};
+var krajeeDialog=new KrajeeDialog(true,krajeeDialog_7f94fe21,krajeeDialogDefaults_33719062);
+var title = "自服务菜单"; var warning="警告"; var cancelTitle ="取消"; var okTitle="确定"; var tip="提示";</script></head>
+<body class="hold-transition skin-blue sidebar-mini">
+
+<div class="wrapper">
+    <header class="main-header">
+        <style type="text/css">
+    .btn-otp {
+        display: block;
+        width: 100%;
+        height: 50px;
+        line-height: 50px;
+        text-align: center;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: none;
+        color: #fff;
+        font-size: 14px;
+        outline: none;
+    }
+
+    .btn-otp:hover {
+        background: rgba(0, 0, 0, .1);
+    }
+</style>
+
+<a href="/home" class="logo">
+    <span class="logo-mini"><b>SRun</span>
+    <span class="logo-lg"><b>自助服务平台</span>
+</a>
+<nav class="navbar navbar-static-top">
+    <a href="#" class="sidebar-toggle" data-toggle="push-menu" role="button">
+        <span class="sr-only">Toggle navigation</span>
+    </a>
+    <div class="navbar-custom-menu">
+        <ul class="nav navbar-nav"><li><a href="#" data-toggle="control-sidebar">中文</a></li>
+<li class="dropdown user user-menu"><a href="#" class="dropdown-toggle" data-toggle="dropdown"><img class="user-image" src="/images/avatar.jpg" alt="User Image"><span class="hidden-xs">张同学</span></a><ul class="dropdown-menu"><li class="user-header" style="padding-top:25px;"><img class="img-circle" src="/images/avatar.jpg" alt="User Image"><p> 20250001</p></li>
+<li class="user-footer"><div class="pull-left"><a class="btn btn-default btn-flat" href="/user/change-password">修改密码</a></div><div class="pull-right"><form action="/site/logout" method="post" id="logout-form">
+    <input type="hidden" name="_csrf-8800" value="TEST-CSRF">
+    <button type="button" id="logout" class="btn btn-danger">退出</button>
+</form></div></li></ul></li></ul>    </div>
+</nav>    </header>
+    <aside class="main-sidebar">
+        
+<style>
+    /*菜单过长显示三点*/
+    .sidebar-menu li a {
+        display: inline-block;
+        width: 230px;
+        overflow: hidden;
+        word-break: keep-all;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+</style>
+
+<section class="sidebar">
+    <div class="user-panel">
+        <div class="pull-left image">
+            <img class="img-circle" src="/images/avatar.jpg" alt="User Image">        </div>
+        <div class="pull-left info">
+            <p>张同学</p>
+            <a href="#"><i class="fa fa-circle text-success"></i> 自服务在线中</a>
+        </div>
+    </div>
+    <ul class="sidebar-menu" data-widget="tree"><li class="header">主菜单</li>
+<li class="active"><a href="/home" data-toggle="tooltip" data-placement="right"><i class="glyphicon glyphicon-home"></i> <span>首页</span></a></li>
+<li><a href="/pays" data-toggle="tooltip" data-placement="right"><i class="glyphicon glyphicon glyphicon-usd"></i> <span>缴费</span></a></li>
+<li class="treeview"><a href="javascript:void(0);" data-toggle="tooltip" data-placement="right"><i class="glyphicon glyphicon-user"></i> <span>用户</span><span class="pull-right-container"><i class="fa fa-angle-left pull-right"></i></span></a><ul class="treeview-menu"><li class="active"><a href="/users" data-toggle="tooltip" data-placement="right"><i class="glyphicon glyphicon-menu-right"></i><span>用户信息</span></a></li>
+<li><a href="/user/change-password" data-toggle="tooltip" data-placement="right"><i class="glyphicon glyphicon-menu-right"></i><span>修改密码</span></a></li>
+<li><a href="/user/modify" data-toggle="tooltip" data-placement="right"><i class="glyphicon glyphicon-menu-right"></i><span>修改资料</span></a></li>
+<li><a href="/user/set-security-questions" data-toggle="tooltip" data-placement="right"><i class="glyphicon glyphicon-menu-right"></i><span>设置密保</span></a></li>
+<li><a href="/user/online-num" data-toggle="tooltip" data-placement="right"><i class="glyphicon glyphicon-menu-right"></i><span>终端连接数</span></a></li></ul></li>
+<li class="treeview"><a href="#" data-toggle="tooltip" data-placement="right"><i class="glyphicon glyphicon-th-list"></i> <span>日志</span><span class="pull-right-container"><i class="fa fa-angle-left pull-right"></i></span></a><ul class="treeview-menu"><li><a href="/log/auth" data-toggle="tooltip" data-placement="right"><i class="glyphicon glyphicon-menu-right"></i><span>认证日志</span></a></li>
+<li><a href="/log/detail" data-toggle="tooltip" data-placement="right"><i class="glyphicon glyphicon-menu-right"></i><span>上网明细</span></a></li>
+<li><a href="/log/pay" data-toggle="tooltip" data-placement="right"><i class="glyphicon glyphicon-menu-right"></i><span>缴费清单</span></a></li>
+<li><a href="/log/check-out" data-toggle="tooltip" data-placement="right"><i class="glyphicon glyphicon-menu-right"></i><span>结算清单</span></a></li></ul></li></ul></section>
+    </aside>
+    <div class="content-wrapper">
+        <section class="content-header">
+            <ol class="breadcrumb">
+                <li><a href="/home"><i class="glyphicon glyphicon-home"></i> 首页                    </a></li>
+                <li class="active">首页</li>
+            </ol>
+        </section>
+        <section class="content">
+                        
+<div class="wrap home-patch">
+    <div class="row" style="margin-left: -15px">
+        <div class="col-lg-4 query-user">
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    <span class="glyphicon glyphicon-th-large" aria-hidden="true"></span>
+                    用户信息                    <a class="pull-right" href="/users">更多>></a>                </div>
+                <ul class="list-group"><li class="list-group-item"><span class="glyphicon glyphicon-user"></span><label class="list-group-label">用户名</label>20250001</li>
+<li class="list-group-item"><span class="glyphicon glyphicon-th-list"></span><label class="list-group-label">姓名</label>张同学</li>
+<li class="list-group-item"><span class="glyphicon glyphicon-info-sign"></span><label class="list-group-label">状态</label><a class="btn btn-xs btn-success">正常</a></li>
+<li class="list-group-item"><span class="glyphicon glyphicon-envelope"></span><label class="list-group-label" style="min-width: 140px;">单在线流量提醒<a href="#" data-toggle="tooltip" data-placement="top" title="说明：本功能专门用于记录计费区域内单IP流量消耗情况。当计费流量达到或超过预设阈值时，
+系统将自动向用户个人i北航中发送消息提醒，旨在提醒用户关注其流量使用情况。若用户选择不启用此功能，可自行将其关闭（默认关闭，修改阀值后会再次提醒）。"><span class="glyphicon glyphicon-info-sign"></span></a></label>&nbsp;<input type="radio" name="flow_remind_input_single" value="0"checked>关闭&nbsp;<input type="radio" name="flow_remind_input_single" value="1" >开启<div><span style="padding-left: 30px;">>=</span>&nbsp;<input type="number" id="flow_remind_input_single" class="form-control" name="" value="" style="width: 80px;display: inline;">&nbsp;GB i北航消息通知<a class="btn btn-xs pull-right btn-success flow_remind_btn" href="javascript:;" tp="flow_remind_input_single">提交 <span class="glyphicon glyphicon-chevron-right" aria-hidden="true"></span></a></div></li></ul>            </div>
+        </div>
+        <div class="col-lg-8 query-online">
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    <span class="glyphicon glyphicon-th-large" aria-hidden="true"></span>
+                    在线信息                    <a class="btn btn-xs btn-danger" href="/home/onekey" style="margin-left: 30px;margin-top:0;" data-confirm="您确定执行一键下线？" data-method="post">一键下线</a>                </div>
+                <div id="w1" class="grid-view is-bs3 kv-grid-bs3 hide-resize" data-krajee-grid="kvGridInit_0e81f109" data-krajee-ps="ps_w1_container"><div id="w1-container" class="table-responsive kv-grid-container"><table class="kv-grid-table table table-bordered table-striped"><colgroup><col>
+<col>
+<col>
+<col>
+<col class="skip-export"></colgroup>
+<thead class="kv-table-header w1">
+<tr><th data-col-seq="1">IP地址</th><th data-col-seq="3">上线时间</th><th data-col-seq="11">计费策略</th><th data-col-seq="13">MAC地址</th><th class="kv-align-center kv-align-middle skip-export" style="width:100px;" data-col-seq="23">操作</th></tr>
+</thead>
+<tbody>
+<tr class="w1" data-key="1"><td class="w1" data-col-seq="1">10.0.0.11</td><td class="w1" data-col-seq="3">2026-11-14 04:31:25</td><td class="w1" data-col-seq="11">70G-270G收费0.25元/G</td><td class="w1" data-col-seq="13">AA-BB-CC-DD-EE-01</td><td class="skip-export kv-align-center kv-align-middle w1" style="width:100px;" data-col-seq="23"><a class="btn btn-xs btn-danger" href="/home/delete?id=1&amp;user_mac=AA-BB-CC-DD-EE-01" title="下线" data-confirm="确定下线此设备?" data-method="post" data-toggle="tooltip">下线</a></td></tr>
+<tr class="w1" data-key="1"><td class="w1" data-col-seq="1">10.0.0.12</td><td class="w1" data-col-seq="3">2026-11-14 16:53:09</td><td class="w1" data-col-seq="11">免费区域</td><td class="w1" data-col-seq="13">AA-BB-CC-DD-EE-02</td><td class="skip-export kv-align-center kv-align-middle w1" style="width:100px;" data-col-seq="23"><a class="btn btn-xs btn-danger" href="/home/delete?id=1&amp;user_mac=AA-BB-CC-DD-EE-01" title="下线" data-confirm="确定下线此设备?" data-method="post" data-toggle="tooltip">下线</a></td></tr>
+<tr class="w1" data-key="1"><td class="w1" data-col-seq="1">10.0.0.13</td><td class="w1" data-col-seq="3">2026-11-14 16:54:38</td><td class="w1" data-col-seq="11">免费区域</td><td class="w1" data-col-seq="13">AA-BB-CC-DD-EE-03</td><td class="skip-export kv-align-center kv-align-middle w1" style="width:100px;" data-col-seq="23"><a class="btn btn-xs btn-danger" href="/home/delete?id=1&amp;user_mac=AA-BB-CC-DD-EE-01" title="下线" data-confirm="确定下线此设备?" data-method="post" data-toggle="tooltip">下线</a></td></tr>
+</tbody></table></div>  </div>            </div>
+        </div>
+    </div>
+    <div id="w3-pjax" data-pjax-container="" data-pjax-push-state data-pjax-timeout="1000"><div class="kv-loader-overlay"><div class="kv-loader"></div></div><div id="w3" class="grid-view is-bs3 kv-grid-bs3 hide-resize" data-krajee-grid="kvGridInit_d80ce522" data-krajee-ps="ps_w3_container"><div class="panel panel-default"><div class="panel-heading panel-default">    <div class="pull-right"><div class="summary">第<b>1-1</b>条，共<b>1</b>条数据.</div></div>
+    <h3 class="panel-title"><span class="glyphicon glyphicon-th-large" aria-hidden="true"></span> 产品信息</h3>
+    <div class="clearfix"></div></div>
+<div class="kv-panel-before">    <div class="btn-toolbar kv-grid-toolbar toolbar-container pull-right"></div>
+    
+    <div class="clearfix"></div></div>
+<div id="w3-container" class="table-responsive kv-grid-container"><table class="kv-grid-table table table-hover table-bordered"><colgroup><col>
+<col>
+<col>
+<col>
+<col>
+<col>
+<col>
+<col class="skip-export"></colgroup>
+<thead class="kv-table-header w3">
+<tr><th data-col-seq="1">产品名称</th><th data-col-seq="2">计费策略</th><th data-col-seq="3">已用流量</th><th data-col-seq="4">已用时长</th><th data-col-seq="6">免费流量剩余(不含套餐)</th><th data-col-seq="7">计费流量剩余(不含套餐)</th><th data-col-seq="12">结算日期</th><th class="kv-align-center kv-align-middle skip-export kv-expand-header-cell kv-batch-toggle w3_f10e446a" title="全部展开" style="font-size: 1em; opacity: 1; width: 100px;" data-col-seq="13">套餐详情</th></tr>
+</thead>
+<tbody>
+<tr class="w3" data-key="1"><td class="w3" data-col-seq="1">学生</td><td class="w3" data-col-seq="2">节假日免费/免费区域/免费70G/70G-270G收费0.25元/G/270G-300G免费不限速/300G以上免费限速</td><td class="w3" data-col-seq="3">85.689G</td><td class="w3" data-col-seq="4">1177时32分51秒</td><td class="w3" data-col-seq="6">0byte</td><td class="w3" data-col-seq="7">415.181G</td><td class="w3" data-col-seq="12">2026-12-01</td><td class="skip-export kv-align-center kv-align-middle w3 kv-expand-icon-cell w3_f10e446a" title="展开" style="width:100px;" data-col-seq="13"><span class="glyphicon glyphicon-ban-circle" aria-hidden="true"></span></td></tr>
+</tbody></table></div>
+<div class="kv-panel-after"></div>
+</div></div></div></div>
+        </section>
+    </div>
+    <footer class="main-footer">
+        <div class="pull-right hidden-xs">
+            <b>深澜认证计费系统v5.2.8</b>
+        </div>
+        <strong><p style="text-align: center;"><span style="color: rgb(60, 60, 60); font-family: "Microsoft YaHei", Simsum, serif; font-size: 14px; text-align: center; background-color: rgb(243, 243, 243);">© 北京航空航天大学2019 版权所有 联系我们：010-82317005</span></p></strong>
+    </footer>
+
+    <aside class="control-sidebar control-sidebar-dark">
+        <ul class="nav nav-tabs nav-justified control-sidebar-tabs">
+            <li class='active'><a href="/site/language?lang=zh-CN"><i class="fa fa-language"></i> 中文</a></a></li>
+            <li class=''><a href="/site/language?lang=en-US"><i class="fa fa-language"></i> English</a></a></li>
+        </ul>
+    </aside>
+    <script src="/assets/f3d7682b/yii.gridView.js"></script>
+<script src="/assets/35acb060/js/bootstrap.js"></script>
+<script src="/assets/1ecc0b89/js/bootstrap-dialog.js"></script>
+<script src="/assets/1ecc0b89/js/dialog-yii.js"></script>
+<script src="/assets/38e269b2/js/jquery.resizableColumns.js"></script>
+<script src="/assets/38e269b2/js/kv-grid-expand.js"></script>
+<script src="/assets/977b0f9b/jquery.pjax.js"></script>
+<script src="/assets/52ad8587/js/bwizard.min.js"></script>
+<script src="/assets/82cd5560/sweetalert.min.js"></script>
+<script src="/assets/df6b26c3/jquery.slimscroll.min.js"></script>
+<script src="/assets/4848fd83/src/assets/js/jquery.bootstrap-touchspin.min.js"></script>
+<script src="/js/adminlte.min.js"></script>
+<script src="/js/main.js"></script>
+<script src="/js/sortable.js"></script>
+<script>jQuery(function ($) {
+$(function () {
+  $('[data-toggle="tooltip"]').tooltip();
+});
+var disabled = false;
+    $("#manualOpen").click(function(){
+        if (disabled) {
+            swal({
+                title:tip, 
+                text:"请勿重复提交",
+                type:"warning",
+                confirmButtonColor: "#5CB85C",
+                confirmButtonText: okTitle,
+            });
+            return;
+        }
+        disabled = true;
+        $(this).attr("disabled", true);
+        $.ajax({url:"/home/manual-open",
+            type: "POST",
+            dateType: "json",
+            success:function(data) {
+                disabled = false;
+                $("#manualOpen").attr("disabled", false);
+                if (data.success) {
+                    swal({
+                        title: tip,
+                        text: data.message,
+                        type: "success",
+                        showCancelButton: false,
+                        confirmButtonColor: "#5CB85C",
+	                    confirmButtonText: okTitle,
+                        closeOnConfirm: false,
+                    }, function(){
+                        window.location.reload();
+                    });
+                } else {
+                    swal({
+                        title:warning, 
+                        text:data.message,
+                        type:"warning",
+                        confirmButtonColor: "#5CB85C",
+                        confirmButtonText: okTitle,
+                    });
+                }
+            }
+        });
+    });
+    
+    $('.flow_remind_btn').click(function() {
+        let tp = $(this).attr('tp');
+        let flow_remind = $('#'+tp).val();
+        let selectedValue = $('input[name="'+tp+'"]:checked').val();
+        if (flow_remind,/^[1-9]\d*$/.test(flow_remind) === false) {
+            swal({
+                title:tip, 
+                text:"请输入大于0的整数",
+                type:"warning",
+                confirmButtonColor: "#5CB85C",
+                confirmButtonText: okTitle,
+            });
+            return;
+        }
+        window.location.href = '/home/set-flow-remind?flow_remind=' + flow_remind+'&open='+selectedValue+'&tp='+tp;
+    });
+krajeeYiiConfirm('krajeeDialog');
+var kvGridInit_0e81f109=function(){
+jQuery('#w1-container').resizableColumns('destroy').resizableColumns({"store":null,"resizeFromBody":false});
+};
+kvGridInit_0e81f109();
+jQuery('#w1').yiiGridView({"filterUrl":"\/home","filterSelector":"#w1-filters input, #w1-filters select","filterOnFocusOut":true});
+kvExpandRow(kvExpandRow_eba08352, 'w3_f10e446a');
+var kvGridInit_d80ce522=function(){
+jQuery('#w3-container').resizableColumns('destroy').resizableColumns({"store":null,"resizeFromBody":false});
+};
+kvGridInit_d80ce522();
+jQuery("#w3-pjax").on('pjax:timeout', function(e){e.preventDefault()}).on('pjax:send', function(){$("#w3-pjax").addClass('kv-grid-loading')}).off('pjax:complete.81ca5bb3').on('pjax:complete.81ca5bb3', function(){setTimeout(kvGridInit_d80ce522, 2500);$("#w3-pjax").removeClass('kv-grid-loading');
+});
+jQuery('#w3').yiiGridView({"filterUrl":"\/home","filterSelector":"#w3-filters input, #w3-filters select","filterOnFocusOut":true});
+jQuery("#w3-pjax").off('pjax:complete.b24ff45d').on('pjax:complete.b24ff45d', function(){ kvExpandRow(kvExpandRow_eba08352, 'w3_f10e446a'); });
+jQuery(document).pjax("#w3-pjax a", {"push":true,"replace":false,"timeout":1000,"scrollTo":false,"container":"#w3-pjax"});
+jQuery(document).off("submit", "#w3-pjax form[data-pjax]").on("submit", "#w3-pjax form[data-pjax]", function (event) {jQuery.pjax.submit(event, {"push":true,"replace":false,"timeout":1000,"scrollTo":false,"container":"#w3-pjax"});});
+    $('#logout').click(function(){
+        swal({ 
+            title: "您确定要退出吗？",
+            type: 'warning', 
+            showCancelButton: true, 
+            closeOnConfirm: false, 
+            showLoaderOnConfirm: true, 
+            confirmButtonText:"确定",
+            cancelButtonText:"取消",
+            confirmButtonColor: "#5CB85C"
+        },
+        function(res){
+            if(res){
+                $('#logout-form').submit()
+            }
+        })
+    })
+    $('.sidebar-menu li').ready(function(){
+       //寻找有data-toggle自定义属性的a元素
+       var elementList = document.querySelectorAll('[data-placement="right"]');
+       for(var index = 0;index<elementList.length;index+=1){
+               var title = elementList[index].text
+               elementList[index].setAttribute('title',title)
+       }
+       
+       $('.sidebar-menu li').tooltip();
+    })
+    
+});</script></body>
+</html>

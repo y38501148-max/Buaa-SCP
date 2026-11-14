@@ -2,12 +2,12 @@ package cn.edu.buaa.scp.ui
 
 import cn.edu.buaa.scp.model.BillCategory
 import cn.edu.buaa.scp.model.BillsModel
-import cn.edu.buaa.scp.model.CardModel
 import cn.edu.buaa.scp.model.HomeModel
 import cn.edu.buaa.scp.model.KeyValue
 import cn.edu.buaa.scp.model.RechargeRow
 import cn.edu.buaa.scp.model.TradeItem
 import cn.edu.buaa.scp.model.TrendRow
+import cn.edu.buaa.scp.model.ZfwHome
 import cn.edu.buaa.scp.util.Json
 import java.util.Locale
 
@@ -78,16 +78,19 @@ object Demo {
 
     const val TRADE_SUMMARY = "本月消费 ¥80.58 · 共 5 笔"
 
-    fun card(): CardModel = CardModel(
+    /** 首页网费卡片的示例数据。 */
+    fun zfwHome(): ZfwHome = ZfwHome(
+        username = "20000000",
         name = "示例同学",
-        idserial = "20250001",
-        studentId = "20000000",
         status = "正常",
-        cardType = "学生卡",
-        balance = BALANCE,
-        channels = channels(),
-        lossError = null,
-        payError = null,
+        product = "学生",
+        strategy = "免费70G / 70G-270G 收费 0.25 元/G",
+        usedTraffic = "85.689G",
+        usedDuration = "1177时32分51秒",
+        freeRemain = "0byte",
+        billedRemain = "415.181G",
+        settleDate = "2026-12-01",
+        onlineCount = 2,
     )
 
     private fun channels(): List<KeyValue> = listOf(

@@ -46,7 +46,10 @@ object Crypto {
         return cipher.doFinal(cipherBytes)
     }
 
-    /** 仅供单元测试使用：按同一算法构造 datajson。 */
+    private const val ALPHABET =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+
+    /** 按前端同一算法构造 datajson（请求与响应共用）。 */
     fun encryptToDatajson(keyMaterial16: String, plainJson: String): String {
         val cipher = Cipher.getInstance("AES/ECB/PKCS5Padding")
         cipher.init(
@@ -56,6 +59,15 @@ object Crypto {
         val encrypted = cipher.doFinal(plainJson.toByteArray(Charsets.UTF_8))
         return keyMaterial16 + Base64.getEncoder().encodeToString(encrypted)
     }
+
+    /** 官方 `genKey`：16 个 [A-Za-z0-9] 随机字符。 */
+    fun randomKey16(): String = buildString {
+        repeat(16) { append(ALPHABET[kotlin.random.Random.nextInt(ALPHABET.length)]) }
+    }
+
+    /** 请求信封：`{"datajson":"<前缀><Base64密文>"}`。 */
+    fun wrapRequest(payload: JSONObject): String =
+        encryptToDatajson(randomKey16(), payload.toString())
 
     internal fun decodeBase64(text: String): ByteArray {
         val trimmed = text.trim()

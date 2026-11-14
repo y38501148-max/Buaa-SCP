@@ -1,7 +1,6 @@
 package cn.edu.buaa.scp
 
 import cn.edu.buaa.scp.model.BillsModel
-import cn.edu.buaa.scp.model.CardModel
 import cn.edu.buaa.scp.model.HomeModel
 import cn.edu.buaa.scp.model.TradeType
 import cn.edu.buaa.scp.model.TradesModel
@@ -162,26 +161,5 @@ class ModelsTest {
         assertEquals(TradeType.SUBSIDY, TradeType.fromId(3))
         assertEquals(TradeType.TRANSFER, TradeType.fromId(4))
         assertEquals(TradeType.ALL, TradeType.fromId(99))
-    }
-
-    @Test
-    fun cardModel_mergesSources() {
-        val model = CardModel.build(loss, null, pay, null, home, "20241234")
-        assertEquals("张同学", model.name)
-        assertEquals("20241234", model.idserial)
-        assertEquals("正常", model.status)
-        assertEquals("学生卡", model.cardType)
-        assertEquals("123.45", model.balance)
-        assertTrue(model.statusNormal)
-        assertFalse(model.bothFailed)
-        assertEquals(3, model.channels.size)
-    }
-
-    @Test
-    fun cardModel_failureFlags() {
-        val model = CardModel.build(null, "err1", null, "err2", null, "")
-        assertTrue(model.bothFailed)
-        assertEquals("未获取", model.cardType)
-        assertTrue(model.balance.isEmpty())
     }
 }

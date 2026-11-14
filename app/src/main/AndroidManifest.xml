@@ -47,5 +47,18 @@
         <activity
             android:name=".ui.LogActivity"
             android:exported="false" />
+
+        <activity
+            android:name=".ui.OtherActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.CardOpActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".ui.ZfwActivity"
+            android:exported="false" />
     </application>
 </manifest>

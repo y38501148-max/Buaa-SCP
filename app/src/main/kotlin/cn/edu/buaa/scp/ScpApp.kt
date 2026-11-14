@@ -7,8 +7,11 @@ import cn.edu.buaa.scp.net.CardApi
 import cn.edu.buaa.scp.net.CasAuth
 import cn.edu.buaa.scp.net.CookieJar
 import cn.edu.buaa.scp.net.HttpEngine
+import cn.edu.buaa.scp.net.PortalApi
+import cn.edu.buaa.scp.net.ZfwApi
 import cn.edu.buaa.scp.store.SecureStore
 import cn.edu.buaa.scp.store.SessionData
+import cn.edu.buaa.scp.store.ZfwSession
 import cn.edu.buaa.scp.util.DebugDump
 import cn.edu.buaa.scp.util.LogBus
 import kotlinx.coroutines.sync.Mutex
@@ -29,7 +32,17 @@ class ScpApp : Application() {
     val http: HttpEngine by lazy { HttpEngine(jar) }
     val cas: CasAuth by lazy { CasAuth(http) }
     val api: CardApi by lazy { CardApi(http) }
+    val portalApi: PortalApi by lazy { PortalApi(http) }
     val store: SecureStore by lazy { SecureStore(this) }
+
+    /** 校园网会话独立存放，避免与统一认证 / 校园卡 Cookie 混在一起。 */
+    val zfwJar: CookieJar by lazy { CookieJar() }
+    val zfwHttp: HttpEngine by lazy { HttpEngine(zfwJar) }
+    val zfwApi: ZfwApi by lazy { ZfwApi(zfwHttp) }
+
+    @Volatile
+    var zfwSession: ZfwSession? = null
+        private set
 
     private val sessionMutex = Mutex()
     private val stateLock = Any()
@@ -72,6 +85,12 @@ class ScpApp : Application() {
                         (if (saved.hasJsessionid) "有" else "无") + "）",
             )
         }
+        val zfw = store.loadZfwSession()
+        if (zfw != null) {
+            zfwSession = zfw
+            zfwApi.applyCookieHeader(zfw.cookie)
+            LogBus.step("已加载校园网会话（${zfw.username.ifBlank { "账号未知" }}）")
+        }
     }
 
     fun hasSession(): Boolean = demoMode || session?.hasAnything == true
@@ -79,14 +98,29 @@ class ScpApp : Application() {
     @Volatile
     private var homeRequested = false
 
-    /** 充值完成后请求宿主页面回到首页。 */
+    @Volatile
+    private var homeRefreshRequested = false
+
+    /** 充值 / 校园网登录完成后请求宿主页面回到首页。 */
     fun requestHome() {
         homeRequested = true
+        homeRefreshRequested = true
     }
 
     fun consumeHomeRequest(): Boolean {
         val requested = homeRequested
         homeRequested = false
+        return requested
+    }
+
+    /** 首页数据需要重新拉取（校园卡状态或校园网会话变化）。 */
+    fun requestHomeRefresh() {
+        homeRefreshRequested = true
+    }
+
+    fun consumeHomeRefresh(): Boolean {
+        val requested = homeRefreshRequested
+        homeRefreshRequested = false
         return requested
     }
 
@@ -192,12 +226,79 @@ class ScpApp : Application() {
         }
     }
 
+    // ---------------- 校园网（zfw）会话 ----------------
+
+    fun hasZfwSession(): Boolean = demoMode || zfwSession?.hasCookie == true
+
+    /**
+     * 保存 WebView 登录后取得的校园网 Cookie。
+     *
+     * 只保存 Cookie，不保存校园网密码；Cookie 与卡片会话一样走 AndroidKeyStore 加密。
+     */
+    fun saveZfwSession(username: String, name: String, cookie: String) {
+        if (cookie.isBlank()) return
+        synchronized(stateLock) {
+            val previous = zfwSession
+            val data = ZfwSession(
+                username = username.ifBlank { previous?.username.orEmpty() },
+                name = name.ifBlank { previous?.name.orEmpty() },
+                cookie = cookie,
+                savedAt = System.currentTimeMillis(),
+                lastSyncAt = previous?.lastSyncAt ?: 0L,
+            )
+            zfwSession = data
+            store.saveZfwSession(data)
+            zfwApi.applyCookieHeader(cookie)
+        }
+    }
+
+    /** 服务端 Cookie 可能续期，用它覆盖本地保存值。 */
+    fun refreshZfwCookie(cookie: String) {
+        val current = zfwSession ?: return
+        if (cookie.isBlank() || cookie == current.cookie) return
+        saveZfwSession(current.username, current.name, cookie)
+    }
+
+    /** 用首页解析出的账号/姓名补齐本地资料（不改 Cookie 时间）。 */
+    fun updateZfwProfile(username: String, name: String) {
+        val current = zfwSession ?: return
+        if (username.isBlank() && name.isBlank()) return
+        if (current.username == username && current.name == name) return
+        val updated = current.copy(
+            username = username.ifBlank { current.username },
+            name = name.ifBlank { current.name },
+        )
+        zfwSession = updated
+        store.saveZfwSession(updated)
+    }
+
+    fun markZfwSynced() {
+        synchronized(stateLock) {
+            val data = zfwSession ?: return
+            val updated = data.copy(lastSyncAt = System.currentTimeMillis())
+            zfwSession = updated
+            store.saveZfwSession(updated)
+        }
+    }
+
+    fun clearZfwSession() {
+        synchronized(stateLock) {
+            zfwSession = null
+            zfwJar.clear()
+            store.clearZfwSession()
+            LogBus.step("已清除校园网会话")
+        }
+    }
+
     fun logout() {
         synchronized(stateLock) {
             demoMode = false
             session = null
+            zfwSession = null
             jar.clear()
+            zfwJar.clear()
             store.clearSession()
+            store.clearZfwSession()
             LogBus.step("已退出登录，本地会话已清除")
         }
     }

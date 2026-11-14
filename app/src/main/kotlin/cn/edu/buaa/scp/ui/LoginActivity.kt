@@ -76,7 +76,15 @@ class LoginActivity : AppCompatActivity() {
             }
         }
 
-        if (BuildConfig.DEBUG) addDemoEntry()
+        if (BuildConfig.DEBUG) {
+            addDemoEntry()
+            if (intent.getBooleanExtra(EXTRA_DEMO, false)) {
+                app.enterDemoMode()
+                startActivity(Intent(this, MainActivity::class.java))
+                finish()
+                return
+            }
+        }
         bootstrap()
         UpdateUi.autoCheck(this)
     }
@@ -326,5 +334,10 @@ class LoginActivity : AppCompatActivity() {
         val focus = currentFocus ?: return
         val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager ?: return
         imm.hideSoftInputFromWindow(focus.windowToken, 0)
+    }
+
+    private companion object {
+        /** 仅 debug 构建：`adb shell am start ... -e demo true` 直接进入离线预览。 */
+        const val EXTRA_DEMO = "demo"
     }
 }

@@ -6,7 +6,6 @@
     <string name="nav_home">首页</string>
     <string name="nav_bills">账单</string>
     <string name="nav_trades">流水</string>
-    <string name="nav_card">卡务</string>
     <string name="nav_settings">设置</string>
 
     <string name="login_title">统一身份认证</string>

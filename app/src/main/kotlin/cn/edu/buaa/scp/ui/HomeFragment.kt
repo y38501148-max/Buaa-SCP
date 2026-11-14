@@ -8,24 +8,45 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import cn.edu.buaa.scp.R
+import cn.edu.buaa.scp.ScpApp
 import cn.edu.buaa.scp.model.HomeModel
+import cn.edu.buaa.scp.model.NetworkModel
+import cn.edu.buaa.scp.model.ZfwState
+import cn.edu.buaa.scp.net.ApiException
 import cn.edu.buaa.scp.net.resultOf
+import cn.edu.buaa.scp.net.ApiResult
 import cn.edu.buaa.scp.util.Json
 import com.google.android.material.card.MaterialCardView
 
-/** 首页：余额、卡状态、账户信息、通知、快捷入口与官方充值入口。 */
+/**
+ * 首页：
+ * 1. 校园卡显示（余额 / 状态）
+ * 2. 网费显示（校园网流量 / 充值入口）
+ * 3. 快捷入口（账单 / 流水 / 充值 / 其他）
+ * 4. 账户信息
+ */
 class HomeFragment : ScpFragment() {
 
     override suspend fun load() {
         if (app.demoMode) {
-            render(Demo.home())
+            render(
+                Demo.home(),
+                NetworkModel(
+                    balance = "103.79",
+                    balanceError = null,
+                    zfw = ZfwState.LoggedIn(Demo.zfwHome()),
+                ),
+            )
             return
         }
         val openid = app.openid()
         val home = resultOf { app.withRecovery { app.api.openHomePageApp(openid) } }
         val pay = resultOf { app.withRecovery { app.api.openCardPay() } }
         val loss = resultOf { app.api.reportLossInfo() }
+        val balance = resultOf { app.withRecovery { app.portalApi.netFeeBalance() } }
+        val zfw = loadZfw()
 
         if (pay.ok) app.markSynced()
         val model = HomeModel.build(
@@ -38,14 +59,36 @@ class HomeFragment : ScpFragment() {
             updatedAt = System.currentTimeMillis(),
         )
         if (!isAlive) return
-        render(model)
+        render(model, NetworkModel(balance.value, balance.error, zfw))
     }
 
-    private fun render(model: HomeModel) {
+    /** 拉取校园网首页：未登录 / 失效 / 已登录三态。 */
+    private suspend fun loadZfw(): ZfwState {
+        if (!app.hasZfwSession()) return ZfwState.NotLoggedIn()
+        return try {
+            val home = app.zfwApi.fetchHome()
+            app.refreshZfwCookie(app.zfwApi.cookieHeader())
+            app.updateZfwProfile(home.username, home.name)
+            app.markZfwSynced()
+            ZfwState.LoggedIn(home)
+        } catch (e: ApiException) {
+            if (e.authExpired) {
+                app.clearZfwSession()
+                ZfwState.NotLoggedIn(expired = true)
+            } else {
+                ZfwState.Failed(e.message ?: "网费数据加载失败")
+            }
+        } catch (e: Exception) {
+            ZfwState.Failed(e.message ?: "网费数据加载失败")
+        }
+    }
+
+    private fun render(model: HomeModel, network: NetworkModel) {
         clearBody()
         val context = requireContext()
 
         addBalanceCard(context, model)
+        addNetworkCard(context, network)
         addQuickActions(context)
         addAccountSection(context, model)
 
@@ -57,6 +100,15 @@ class HomeFragment : ScpFragment() {
             }
         }
     }
+
+    override fun onResume() {
+        super.onResume()
+        if (isAdded && view != null && app.consumeHomeRefresh()) {
+            refresh()
+        }
+    }
+
+    // ---------------- 校园卡显示 ----------------
 
     private fun addBalanceCard(context: Context, model: HomeModel) {
         val hero = FrameLayout(context).apply {
@@ -168,6 +220,121 @@ class HomeFragment : ScpFragment() {
         body.addView(hero)
     }
 
+    // ---------------- 网费显示 ----------------
+
+    private fun addNetworkCard(context: Context, network: NetworkModel) {
+        val state = network.zfw
+        val card = MaterialCardView(context).apply {
+            radius = Ui.dp(context, 20f).toFloat()
+            cardElevation = Ui.dp(context, 1f).toFloat()
+            strokeWidth = Ui.dp(context, 1f)
+            strokeColor = Ui.color(context, R.color.brand_blue_soft)
+            setCardBackgroundColor(Ui.color(context, R.color.surface))
+            rippleColor = Ui.tint(Ui.color(context, R.color.brand_blue_soft))
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { openZfw(recharge = false) }
+        }
+        val content = Ui.column(context).apply {
+            setPadding(Ui.dp(context, 18f), Ui.dp(context, 16f), Ui.dp(context, 18f), Ui.dp(context, 14f))
+        }
+        card.addView(content)
+
+        val header = Ui.row(context)
+        header.addView(Ui.iconTile(context, R.drawable.ic_wifi, R.color.brand_blue, R.color.brand_blue_soft, 38))
+        header.addView(
+            Ui.text(context, "校园网", 15f, R.color.text_primary, bold = true),
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                marginStart = Ui.dp(context, 10f)
+            },
+        )
+        header.addView(
+            Ui.pill(
+                context,
+                when (state) {
+                    is ZfwState.LoggedIn -> "已登录"
+                    is ZfwState.Failed -> "加载失败"
+                    else -> "未登录"
+                },
+                if (state is ZfwState.LoggedIn) R.drawable.bg_pill_soft else R.drawable.bg_pill_gold_soft,
+                if (state is ZfwState.LoggedIn) R.color.green else R.color.orange,
+            ).apply { gravity = Gravity.CENTER },
+        )
+        content.addView(header)
+        Ui.divider(content)
+
+        val row = Ui.row(context)
+        val loggedIn = state as? ZfwState.LoggedIn
+        addNetworkMetric(
+            context, row, "网费余额",
+            network.balance?.let { "¥$it" } ?: "—",
+            R.color.brand_gold_deep,
+        )
+        addNetworkMetric(
+            context, row, "剩余免费流量",
+            loggedIn?.home?.freeRemainText ?: "—",
+            R.color.brand_blue,
+        )
+        addNetworkMetric(
+            context, row, "剩余计费流量",
+            loggedIn?.home?.billedRemainText ?: "—",
+            R.color.brand_blue,
+        )
+        content.addView(row, Ui.rowParams(context, 2f))
+
+        val footer = Ui.row(context)
+        footer.addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
+        val action = Ui.goldButton(
+            context,
+            if (loggedIn != null) "网费充值" else "登录校园网",
+        ).apply {
+            minWidth = Ui.dp(context, 96f)
+            minimumHeight = Ui.dp(context, 38f)
+            insetTop = 0
+            insetBottom = 0
+            textSize = 12.5f
+            setPadding(Ui.dp(context, 16f), 0, Ui.dp(context, 16f), 0)
+        }
+        action.setOnClickListener { openZfw(recharge = loggedIn != null) }
+        footer.addView(action)
+        content.addView(footer, Ui.rowParams(context, 14f))
+
+        body.addView(
+            card,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { bottomMargin = Ui.dp(context, 16f) },
+        )
+    }
+
+    private fun addNetworkMetric(
+        context: Context,
+        parent: LinearLayout,
+        label: String,
+        value: String,
+        colorRes: Int,
+    ) {
+        val column = Ui.column(context)
+        column.addView(Ui.text(context, label, 10.5f, R.color.text_hint))
+        column.addView(
+            Ui.text(context, value, 18f, colorRes, bold = true),
+            Ui.rowParams(context, 4f),
+        )
+        parent.addView(
+            column,
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
+        )
+    }
+
+    private fun openZfw(recharge: Boolean) {
+        val intent = Intent(requireContext(), ZfwActivity::class.java)
+        if (recharge) intent.putExtra(ZfwActivity.EXTRA_RECHARGE, true)
+        startActivity(intent)
+    }
+
+    // ---------------- 快捷入口 ----------------
+
     private fun addQuickActions(context: Context) {
         Ui.sectionHeader(body, "快捷入口")
         val row = Ui.row(context)
@@ -178,11 +345,11 @@ class HomeFragment : ScpFragment() {
             QuickEntry("流水", R.drawable.ic_trade, R.color.brand_teal, R.color.brand_teal_soft) {
                 (activity as? MainActivity)?.switchTab(R.id.nav_trades)
             },
-            QuickEntry("卡务", R.drawable.ic_card, R.color.brand_gold_deep, R.color.brand_gold_soft) {
-                (activity as? MainActivity)?.switchTab(R.id.nav_card)
-            },
-            QuickEntry("充值", R.drawable.ic_recharge, R.color.brand_blue, R.color.brand_navy_soft) {
+            QuickEntry("充值", R.drawable.ic_recharge, R.color.brand_gold_deep, R.color.brand_gold_soft) {
                 startActivity(Intent(requireContext(), RechargeActivity::class.java))
+            },
+            QuickEntry("其他", R.drawable.ic_more, R.color.brand_navy, R.color.brand_navy_soft) {
+                startActivity(Intent(requireContext(), OtherActivity::class.java))
             },
         )
         entries.forEachIndexed { index, entry ->
@@ -223,6 +390,8 @@ class HomeFragment : ScpFragment() {
         card.addView(column)
         return card
     }
+
+    // ---------------- 账户信息 ----------------
 
     private fun addAccountSection(context: Context, model: HomeModel) {
         val info = Ui.addSection(body, "账户信息")

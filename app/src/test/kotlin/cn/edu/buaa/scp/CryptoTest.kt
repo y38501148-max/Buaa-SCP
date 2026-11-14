@@ -57,4 +57,20 @@ class CryptoTest {
     fun decrypt_rejectsShortInput() {
         Crypto.decrypt("too-short")
     }
+
+    /** 官方前端同样用这套算法加密请求体；向量来自官方 bundle 的独立实现。 */
+    @Test
+    fun requestEnvelopeMatchesOfficialVector() {
+        assertEquals(
+            "0123456789ABCDEFQUC/RjeZI7uX6hvq57W3O+gndGvKFcxYHY8K8NcWYrc=",
+            Crypto.encryptToDatajson("0123456789ABCDEF", """{"ok":true,"n":1}"""),
+        )
+    }
+
+    @Test
+    fun randomKey16UsesOfficialAlphabet() {
+        val key = Crypto.randomKey16()
+        assertEquals(16, key.length)
+        assertTrue(key.all { it in 'A'..'Z' || it in 'a'..'z' || it in '0'..'9' })
+    }
 }

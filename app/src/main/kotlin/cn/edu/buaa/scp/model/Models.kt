@@ -91,6 +91,88 @@ data class HomeModel(
     }
 }
 
+// ---------------- 网费（zfw） ----------------
+
+/** 首页「网费」卡片的数据：门户余额 + zfw 流量状态。 */
+data class NetworkModel(
+    val balance: String?,
+    val balanceError: String?,
+    val zfw: ZfwState,
+)
+
+/** 首页「网费」卡片的三种状态。 */
+sealed class ZfwState {
+    /** 尚未登录校园网（或曾登录但会话已失效）。 */
+    data class NotLoggedIn(val expired: Boolean = false) : ZfwState()
+
+    /** 已登录且成功拿到首页数据。 */
+    data class LoggedIn(val home: ZfwHome) : ZfwState()
+
+    /** 已登录但本次拉取失败。 */
+    data class Failed(val message: String) : ZfwState()
+}
+
+/**
+ * 校园网自助服务首页数据。
+ *
+ * 字段直接对应深澜页面上的「用户信息」与「产品信息」表格；
+ * 官方单位为 G / byte，展示前由 [billedRemainText] 等函数统一成一位/两位小数。
+ */
+data class ZfwHome(
+    val username: String,
+    val name: String,
+    val status: String,
+    val product: String,
+    val strategy: String,
+    val usedTraffic: String,
+    val usedDuration: String,
+    val freeRemain: String,
+    val billedRemain: String,
+    val settleDate: String,
+    val onlineCount: Int,
+) {
+    val statusNormal: Boolean
+        get() = status.isBlank() || status.contains("正常")
+
+    /** 主展示：计费流量剩余，例如 "415.18 G"。 */
+    val billedRemainText: String get() = trafficText(billedRemain)
+
+    /** 副展示：已用流量，例如 "85.69 G"。 */
+    val usedTrafficText: String get() = trafficText(usedTraffic)
+
+    /** 免费流量剩余，0byte 显示为 "0"。 */
+    val freeRemainText: String get() = trafficText(freeRemain)
+
+    companion object {
+        /**
+         * 流量文本格式化：保留单位、数值最多两位小数；`0byte` 直接显示 0。
+         *
+         * 官方页面常见形式：`85.689G`、`0byte`、`1.5T`、`512M`。
+         */
+        fun trafficText(raw: String?): String {
+            val text = raw?.trim().orEmpty()
+            if (text.isEmpty()) return "—"
+            if (text.equals("0byte", ignoreCase = true) || text == "0") return "0"
+            val match = Regex("""^([0-9]+(?:\.[0-9]+)?)\s*([a-zA-Z]+)$""").find(text)
+                ?: return text
+            val number = match.groupValues[1].toBigDecimalOrNull() ?: return text
+            val rounded = number.setScale(2, java.math.RoundingMode.HALF_UP)
+                .stripTrailingZeros()
+                .toPlainString()
+            val unit = match.groupValues[2]
+            val displayUnit = when (unit.lowercase(java.util.Locale.US)) {
+                "byte", "bytes", "b" -> "B"
+                "k", "kb" -> "KB"
+                "m", "mb" -> "MB"
+                "g", "gb" -> "GB"
+                "t", "tb" -> "TB"
+                else -> unit
+            }
+            return "$rounded $displayUnit"
+        }
+    }
+}
+
 // ---------------- 账单 ----------------
 
 data class BillCategory(
@@ -310,60 +392,6 @@ data class TradesModel(
             val amount = Json.fenToYuan(first.pathString("txamt"))
             val count = first.pathString("countnum").ifBlank { "0" }
             return "本月充值 ${Json.money(amount)}，共 $count 笔"
-        }
-    }
-}
-
-// ---------------- 卡务 ----------------
-
-data class CardModel(
-    val name: String,
-    val idserial: String,
-    val studentId: String,
-    val status: String,
-    val cardType: String,
-    val balance: String,
-    val channels: List<KeyValue>,
-    val lossError: String?,
-    val payError: String?,
-) {
-    val bothFailed: Boolean get() = lossError != null && payError != null
-    val statusNormal: Boolean
-        get() = status.isBlank() ||
-                status.contains("正常") ||
-                status.lowercase().contains("normal")
-
-    companion object {
-        fun build(
-            loss: JSONObject?,
-            lossError: String?,
-            pay: JSONObject?,
-            payError: String?,
-            home: JSONObject?,
-            studentId: String,
-        ): CardModel {
-            val idserial = loss?.pathString("data", "idserial").orEmpty()
-                .ifEmpty { pay?.pathString("data", "cardPay", "idserial").orEmpty() }
-            val status = loss?.pathString("data", "accstatusStr").orEmpty()
-                .ifEmpty { home?.pathString("data", "cardinfo", "accstatusStr").orEmpty() }
-            val balance = pay?.pathString("data", "cardPay", "cardbal").orEmpty()
-            val channels = buildList {
-                val jsonmsg = pay?.pathObject("data", "jsonmsg") ?: return@buildList
-                add(KeyValue("微信支付", jsonmsg.pathString("wechat").ifBlank { "未开放" }))
-                add(KeyValue("支付宝", jsonmsg.pathString("alipay").ifBlank { "未开放" }))
-                add(KeyValue("建设银行", jsonmsg.pathString("abc").ifBlank { "未开放" }))
-            }
-            return CardModel(
-                name = loss?.pathString("data", "username").orEmpty(),
-                idserial = idserial,
-                studentId = studentId,
-                status = status,
-                cardType = Json.cardType(home?.pathString("data", "pcodeCard")),
-                balance = Json.yuan(balance).takeIf { balance.isNotEmpty() } ?: "",
-                channels = channels,
-                lossError = lossError,
-                payError = payError,
-            )
         }
     }
 }

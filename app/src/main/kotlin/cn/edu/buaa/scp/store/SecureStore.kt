@@ -55,6 +55,43 @@ class SecureStore(context: Context) {
         prefs.edit().remove(KEY_SESSION).apply()
     }
 
+    // ---------------- 校园网（zfw）会话 ----------------
+
+    fun saveZfwSession(data: ZfwSession?) {
+        if (data == null) {
+            prefs.edit().remove(KEY_ZFW_SESSION).apply()
+            return
+        }
+        val json = data.toJson().toString()
+        try {
+            prefs.edit().putString(KEY_ZFW_SESSION, GCM_PREFIX + encrypt(json)).apply()
+        } catch (e: Exception) {
+            LogBus.warn("密钥库不可用（${e.javaClass.simpleName}），校园网会话以明文保存")
+            prefs.edit().putString(KEY_ZFW_SESSION, PLAIN_PREFIX + json).apply()
+        }
+    }
+
+    fun loadZfwSession(): ZfwSession? {
+        val blob = prefs.getString(KEY_ZFW_SESSION, null)
+        if (blob.isNullOrEmpty()) return null
+        return try {
+            val json = when {
+                blob.startsWith(GCM_PREFIX) -> decrypt(blob.removePrefix(GCM_PREFIX))
+                blob.startsWith(PLAIN_PREFIX) -> blob.removePrefix(PLAIN_PREFIX)
+                else -> blob
+            }
+            ZfwSession.fromJson(JSONObject(json))
+        } catch (e: Exception) {
+            LogBus.warn("读取校园网会话失败：${e.javaClass.simpleName}，已丢弃")
+            prefs.edit().remove(KEY_ZFW_SESSION).apply()
+            null
+        }
+    }
+
+    fun clearZfwSession() {
+        prefs.edit().remove(KEY_ZFW_SESSION).apply()
+    }
+
     fun rememberedStudentId(): String = prefs.getString(KEY_STUDENT, "").orEmpty()
 
     fun setRememberedStudentId(studentId: String?) {
@@ -106,6 +143,7 @@ class SecureStore(context: Context) {
     private companion object {
         const val PREFS = "scp_session"
         const val KEY_SESSION = "session_blob"
+        const val KEY_ZFW_SESSION = "zfw_session_blob"
         const val KEY_STUDENT = "remembered_student_id"
         const val KEY_ALIAS = "scp.session.key.v1"
         const val GCM_PREFIX = "gcm:"
