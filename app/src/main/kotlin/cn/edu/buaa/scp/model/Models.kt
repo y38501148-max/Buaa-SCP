@@ -189,18 +189,31 @@ data class RechargeRow(
 )
 
 data class TrendRow(
+    val month: String = "",
     val label: String,
     val amount: String,
     val fraction: Float,
+    val count: String = "",
 )
 
+/**
+ * 账单页模型：月度消费分类 + 本月消费/充值合计 + 近半年趋势。
+ *
+ * 「本月消费」来自 `queryUserMonthlybill` 的 sumamt，消费趋势来自
+ * `queryUserMonthlybillHalfOfYear`。充值不用 `/bill/queryRechargeGroupByMonth`：
+ * 官方接口在缺少有效图表配置（chartId）时会返回消费口径的数据，把消费金额当成充值；
+ * 客户端改用充值流水（`queryCardSelfTradeList` 且 `tradetype=2`）自行按月汇总，口径确定。
+ */
 data class BillsModel(
     val month: String,
     val monthlyTotal: String,
+    val monthlyCount: String,
     val categories: List<BillCategory>,
     val monthlyError: String?,
     val rechargeRows: List<RechargeRow>,
     val rechargeError: String?,
+    val rechargeMonthAmount: String,
+    val rechargeMonthCount: String,
     val trendRows: List<TrendRow>,
     val trendTotal: String,
     val trendCount: String,
@@ -211,24 +224,28 @@ data class BillsModel(
             month: String,
             bill: JSONObject?,
             monthlyError: String?,
-            recharge: JSONObject?,
+            rechargeRows: List<RechargeRow>,
             rechargeError: String?,
             half: JSONObject?,
             trendError: String?,
         ): BillsModel {
             val categories = buildCategories(bill)
-            val rechargeRows = buildRechargeRows(recharge)
             val trendRows = buildTrendRows(half)
-            val trendTotal = trendTotalOf(half, trendRows)
+            val monthTrend = trendRows.firstOrNull { it.month == month }
+            val rawTotal = bill?.pathString("resultData", "sumamt").orEmpty()
+            val rechargeMonth = rechargeRows.firstOrNull { it.month == month }
             return BillsModel(
                 month = month,
-                monthlyTotal = Json.yuan(bill?.pathString("resultData", "sumamt").orEmpty()),
+                monthlyTotal = if (rawTotal.isBlank()) monthTrend?.amount ?: "0.00" else Json.yuan(rawTotal),
+                monthlyCount = monthTrend?.count.orEmpty(),
                 categories = categories,
                 monthlyError = monthlyError,
                 rechargeRows = rechargeRows,
                 rechargeError = rechargeError,
+                rechargeMonthAmount = rechargeMonth?.amount ?: "0.00",
+                rechargeMonthCount = rechargeMonth?.count.orEmpty(),
                 trendRows = trendRows,
-                trendTotal = trendTotal,
+                trendTotal = trendTotalOf(half, trendRows),
                 trendCount = half?.pathString("resultData", "totalcount").orEmpty(),
                 trendError = trendError,
             )
@@ -250,23 +267,8 @@ data class BillsModel(
             }
         }
 
-        private fun buildRechargeRows(recharge: JSONObject?): List<RechargeRow> {
-            val list = recharge?.pathArray("resultData", "billList")?.objects() ?: return emptyList()
-            val amounts = list.map { Json.fenToYuan(it.pathString("txamt")) to it }
-            val max = amounts.maxOfOrNull { Json.numberOrNull(it.first) ?: 0.0 } ?: 0.0
-            return amounts.map { (amount, row) ->
-                val value = Json.numberOrNull(amount) ?: 0.0
-                RechargeRow(
-                    month = row.pathString("txdate"),
-                    amount = Json.money(amount),
-                    count = row.pathString("countnum"),
-                    fraction = if (max > 0) (value / max).toFloat() else 0f,
-                )
-            }
-        }
-
         /**
-         * 趋势合计：官方接口在某些请求（缺失 chartId）下只返回 billList、不返回 totalamt，
+         * 趋势合计：官方接口在缺失 chartId 时可能只返回 billList、不返回 totalamt，
          * 此时用 billList 自行求和，避免页面显示「合计 ¥0.00」。
          */
         private fun trendTotalOf(half: JSONObject?, rows: List<TrendRow>): String {
@@ -277,6 +279,7 @@ data class BillsModel(
             return String.format(java.util.Locale.US, "%.2f", sum)
         }
 
+        /** 近半年按月消费：金额单位分，按月份正序供柱状图使用。 */
         private fun buildTrendRows(half: JSONObject?): List<TrendRow> {
             val list = half?.pathArray("resultData", "billList")?.objects() ?: return emptyList()
             val amounts = list.map { Json.fenToYuan(it.pathString("txamt")) to it }
@@ -285,12 +288,45 @@ data class BillsModel(
                 val date = row.pathString("txdate")
                 val value = Json.numberOrNull(amount) ?: 0.0
                 TrendRow(
-                    label = if (date.length >= 7) date.substring(5) + "月" else date,
+                    month = date,
+                    label = if (date.length >= 7) date.substring(5, 7).trimStart('0') + "月" else date,
                     amount = Json.yuan(amount),
                     fraction = if (max > 0) (value / max).toFloat() else 0f,
+                    count = row.pathString("countnum"),
+                )
+            }.sortedBy { it.month }
+        }
+    }
+}
+
+/**
+ * 充值按月汇总：数据来自充值流水（`tradetype=2`），不依赖官方充值汇总接口。
+ *
+ * 官方 `/bill/queryRechargeGroupByMonth` 在没有有效图表配置时会返回消费口径的数据，
+ * 因此客户端只信任充值流水：金额单位元，按流水时间归月。
+ */
+object BillRecharge {
+
+    fun monthly(entries: List<TradeItem>, months: List<String>): List<RechargeRow> {
+        val bucket = LinkedHashMap<String, Pair<Double, Int>>()
+        for (entry in entries) {
+            val month = entry.month
+            if (month.isEmpty() || month !in months) continue
+            val value = entry.yuan.removePrefix("-").toDoubleOrNull() ?: continue
+            val previous = bucket[month] ?: (0.0 to 0)
+            bucket[month] = (previous.first + value) to (previous.second + 1)
+        }
+        val max = bucket.values.maxOfOrNull { it.first } ?: 0.0
+        return bucket.entries
+            .sortedByDescending { it.key }
+            .map { (month, value) ->
+                RechargeRow(
+                    month = month,
+                    amount = String.format(java.util.Locale.US, "%.2f", value.first),
+                    count = value.second.toString(),
+                    fraction = if (max > 0) (value.first / max).toFloat() else 0f,
                 )
             }
-        }
     }
 }
 
@@ -314,6 +350,10 @@ data class TradeItem(
     val time: String,
     val amount: String,
     val negative: Boolean,
+    /** 原始金额（元，保留正负号），用于按类型汇总。 */
+    val yuan: String = "",
+    /** 交易所属月份（yyyy-MM），用于充值按月汇总。 */
+    val month: String = "",
 )
 
 /** 流水接口一页数据。 */
@@ -323,75 +363,42 @@ data class TradesPage(
     val lastCount: Int,
 )
 
-data class TradesModel(
-    val month: String,
-    val type: TradeType,
-    val summary: String,
-    val items: List<TradeItem>,
-    val page: Int,
-    val totalPages: Int,
-    val error: String?,
-) {
-    val hasMore: Boolean get() = totalPages > 0 && page < totalPages - 1
+/** 流水接口解析与分页常量。 */
+object TradesModel {
+    const val PAGE_SIZE = 10
 
-    companion object {
-        const val PAGE_SIZE = 10
-
-        /**
-         * 解析某一页。
-         *
-         * 实测两种返回结构并存：
-         * - `{"resultData":{"rows":[…],"totalpage":"3"}}`（官方 bundle 里读取的结构）
-         * - `{"data":{"data":[…]}}`（当前线上接口，扁平数组、无分页字段）
-         *
-         * 因此两种都兼容；缺失 totalpage 时 totalPages=-1，由调用方按「返回条数是否满一页」推断。
-         */
-        fun parsePage(data: JSONObject?): TradesPage {
-            if (data == null) return TradesPage(emptyList(), -1, 0)
-            val node = data.pathObject("resultData") ?: data.pathObject("data")
-            val rows = node?.pathArray("rows") ?: node?.pathArray("data")
-            val items = rows?.objects()?.map { row ->
-                val raw = row.pathString("txamt")
-                val yuan = Json.fenToYuan(raw)
-                val negative = yuan.startsWith("-")
-                val abs = if (negative) yuan.removePrefix("-") else yuan
-                TradeItem(
-                    merchant = row.pathString("mername")
-                        .ifBlank { row.pathString("txname") }
-                        .ifBlank { row.pathString("summary") }
-                        .ifBlank { "未知商户" },
-                    time = row.pathString("txdate").ifBlank { row.pathString("txtime") },
-                    amount = if (negative) "-¥$abs" else "+¥$abs",
-                    negative = negative,
-                )
-            }.orEmpty()
-            val totalPages = node?.pathString("totalpage")?.toIntOrNull() ?: -1
-            return TradesPage(items, totalPages, items.size)
-        }
-
-        /** 消费类汇总：官方前端取 halfYear 的 totalamt / totalcount，缺失时用 billList 求和。 */
-        fun summaryForConsume(half: JSONObject): String {
-            val rawTotal = Json.fenToYuan(half.pathString("resultData", "totalamt"))
-            var amount = rawTotal
-            val total = Json.numberOrNull(rawTotal) ?: 0.0
-            if (total <= 0) {
-                val rows = half.pathArray("resultData", "billList")?.objects().orEmpty()
-                val sum = rows.sumOf { Json.numberOrNull(Json.fenToYuan(it.pathString("txamt"))) ?: 0.0 }
-                if (rows.isNotEmpty()) {
-                    amount = String.format(java.util.Locale.US, "%.2f", sum)
-                }
-            }
-            val count = half.pathString("resultData", "totalcount")
-            return "本月消费 ${Json.money(amount)}" + if (count.isBlank()) "" else "，共 $count 笔"
-        }
-
-        /** 充值类汇总：官方前端取 rechargeGroupByMonth 的第一条。 */
-        fun summaryForRecharge(recharge: JSONObject): String {
-            val first = recharge.pathArray("resultData", "billList")?.objects()?.firstOrNull()
-                ?: return "本月暂无充值记录"
-            val amount = Json.fenToYuan(first.pathString("txamt"))
-            val count = first.pathString("countnum").ifBlank { "0" }
-            return "本月充值 ${Json.money(amount)}，共 $count 笔"
-        }
+    /**
+     * 解析某一页。
+     *
+     * 实测两种返回结构并存：
+     * - `{"resultData":{"rows":[…],"totalpage":"3"}}`（官方 bundle 里读取的结构）
+     * - `{"data":{"data":[…]}}`（当前线上接口，扁平数组、无分页字段）
+     *
+     * 因此两种都兼容；缺失 totalpage 时 totalPages=-1，由调用方按「返回条数是否满一页」推断。
+     */
+    fun parsePage(data: JSONObject?): TradesPage {
+        if (data == null) return TradesPage(emptyList(), -1, 0)
+        val node = data.pathObject("resultData") ?: data.pathObject("data")
+        val rows = node?.pathArray("rows") ?: node?.pathArray("data")
+        val items = rows?.objects()?.map { row ->
+            val raw = row.pathString("txamt")
+            val yuan = Json.fenToYuan(raw)
+            val negative = yuan.startsWith("-")
+            val abs = if (negative) yuan.removePrefix("-") else yuan
+            val time = row.pathString("txdate").ifBlank { row.pathString("txtime") }
+            TradeItem(
+                merchant = row.pathString("mername")
+                    .ifBlank { row.pathString("txname") }
+                    .ifBlank { row.pathString("summary") }
+                    .ifBlank { "未知商户" },
+                time = time,
+                amount = if (negative) "-¥$abs" else "+¥$abs",
+                negative = negative,
+                yuan = yuan,
+                month = if (time.length >= 7) time.substring(0, 7) else "",
+            )
+        }.orEmpty()
+        val totalPages = node?.pathString("totalpage")?.toIntOrNull() ?: -1
+        return TradesPage(items, totalPages, items.size)
     }
 }

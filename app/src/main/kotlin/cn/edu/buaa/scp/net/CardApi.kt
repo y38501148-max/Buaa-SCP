@@ -42,18 +42,9 @@ class CardApi(private val http: HttpEngine) {
         val payload = JSONObject().apply {
             put("startdate", month)
             put("enddate", month)
-            if (openid.isNotEmpty()) put("openid", openid)
         }
+        identity(payload, openid)
         return call("/bill/queryUserMonthlybill", payload)
-    }
-
-    /** 按月充值汇总：金额单位分。 */
-    suspend fun rechargeByMonth(startMonth: String, endMonth: String): JSONObject {
-        val payload = JSONObject().apply {
-            put("startdate", startMonth)
-            put("enddate", endMonth)
-        }
-        return call("/bill/queryRechargeGroupByMonth", payload)
     }
 
     /** 近半年月度柱状数据，同时带 totalamt / totalcount 汇总。 */
@@ -61,12 +52,14 @@ class CardApi(private val http: HttpEngine) {
         startMonth: String,
         endMonth: String,
         dateArray: JSONArray? = null,
+        openid: String = "",
     ): JSONObject {
         val payload = JSONObject().apply {
             put("startdate", startMonth)
             put("enddate", endMonth)
             if (dateArray != null) put("dateArray", dateArray)
         }
+        identity(payload, openid)
         return call("/bill/queryUserMonthlybillHalfOfYear", payload)
     }
 
@@ -260,6 +253,12 @@ class CardApi(private val http: HttpEngine) {
             val url = BASE + path + "?datajson=" + Html.urlEncode(datajson)
             unwrap(http.get(url, baseHeaders()), path)
         }
+
+    /** 账单类请求与官方前端一致：payload 带 openid（有值时）与 orgid。 */
+    private fun identity(payload: JSONObject, openid: String) {
+        if (openid.isNotEmpty() && !payload.has("openid")) payload.put("openid", openid)
+        if (!payload.has("orgid")) payload.put("orgid", "2")
+    }
 
     private fun jsonOf(map: Map<String, String>): JSONObject = JSONObject().apply {
         map.forEach { (key, value) -> put(key, value) }

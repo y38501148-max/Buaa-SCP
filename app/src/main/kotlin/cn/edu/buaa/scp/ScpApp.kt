@@ -6,6 +6,7 @@ import cn.edu.buaa.scp.net.ApiException
 import cn.edu.buaa.scp.net.CardApi
 import cn.edu.buaa.scp.net.CasAuth
 import cn.edu.buaa.scp.net.CookieJar
+import cn.edu.buaa.scp.net.FinanceApi
 import cn.edu.buaa.scp.net.HttpEngine
 import cn.edu.buaa.scp.net.PortalApi
 import cn.edu.buaa.scp.net.ZfwApi
@@ -34,6 +35,9 @@ class ScpApp : Application() {
     val cas: CasAuth by lazy { CasAuth(http) }
     val api: CardApi by lazy { CardApi(http) }
     val portalApi: PortalApi by lazy { PortalApi(http) }
+
+    /** 财务系统（chaxun.icw.buaa.edu.cn）收入查询，复用统一认证 Cookie。 */
+    val financeApi: FinanceApi by lazy { FinanceApi(http) }
     val store: SecureStore by lazy { SecureStore(this) }
 
     /** 校园网会话独立存放，避免与统一认证 / 校园卡 Cookie 混在一起。 */
@@ -234,6 +238,10 @@ class ScpApp : Application() {
                 savedAt = System.currentTimeMillis(),
                 lastSyncAt = previous?.lastSyncAt ?: 0L,
             )
+            if (previous?.studentId != data.studentId || previous?.openid != data.openid) {
+                // 换了账号：清掉财务系统的内存 token，避免读到上一个账号的收入记录。
+                financeApi.reset()
+            }
             session = data
             store.saveSession(data)
             if (data.studentId.isNotEmpty()) {
@@ -321,6 +329,7 @@ class ScpApp : Application() {
             demoMode = false
             session = null
             zfwSession = null
+            financeApi.reset()
             jar.clear()
             zfwJar.clear()
             store.clearSession()

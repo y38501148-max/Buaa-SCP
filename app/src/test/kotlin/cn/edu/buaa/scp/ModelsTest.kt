@@ -1,14 +1,16 @@
 package cn.edu.buaa.scp
 
+import cn.edu.buaa.scp.model.BillRecharge
 import cn.edu.buaa.scp.model.BillsModel
 import cn.edu.buaa.scp.model.HomeModel
+import cn.edu.buaa.scp.model.TradeItem
 import cn.edu.buaa.scp.model.TradeType
 import cn.edu.buaa.scp.model.TradesModel
-import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.json.JSONObject
 import org.junit.Test
 
 /**
@@ -64,7 +66,7 @@ class ModelsTest {
             month = "2026-11",
             bill = TestFixtures.json("monthlyBill.json"),
             monthlyError = null,
-            recharge = TestFixtures.json("rechargeByMonth.json"),
+            rechargeRows = rechargeRows(),
             rechargeError = null,
             half = TestFixtures.json("halfYear.json"),
             trendError = null,
@@ -76,15 +78,36 @@ class ModelsTest {
         assertEquals(0.75f, model.categories[0].fraction, 0.01f)
 
         assertEquals(2, model.rechargeRows.size)
-        assertEquals("2026-06", model.rechargeRows[0].month)
-        assertEquals("¥10.00", model.rechargeRows[0].amount)
-        assertEquals("2", model.rechargeRows[1].count)
-        assertEquals(1.0f, model.rechargeRows[1].fraction, 0.001f)
+        // 月份倒序：09 月在前，06 月在后
+        assertEquals("2026-09", model.rechargeRows[0].month)
+        assertEquals("50.00", model.rechargeRows[0].amount)
+        assertEquals("1", model.rechargeRows[0].count)
+        assertEquals(1.0f, model.rechargeRows[0].fraction, 0.001f)
+        assertEquals("2026-06", model.rechargeRows[1].month)
+        assertEquals("10.00", model.rechargeRows[1].amount)
+
+        // 所选月份 2026-11 没有充值流水，合计为 0.00
+        assertEquals("0.00", model.rechargeMonthAmount)
 
         assertEquals(2, model.trendRows.size)
-        assertEquals("06月", model.trendRows[0].label)
+        assertEquals("6月", model.trendRows[0].label)
         assertEquals("60.00", model.trendTotal)
         assertEquals("3", model.trendCount)
+    }
+
+    @Test
+    fun billsModel_picksSelectedMonthRechargeTotal() {
+        val model = BillsModel.build(
+            month = "2026-09",
+            bill = TestFixtures.json("monthlyBill.json"),
+            monthlyError = null,
+            rechargeRows = rechargeRows(),
+            rechargeError = null,
+            half = TestFixtures.json("halfYear.json"),
+            trendError = null,
+        )
+        assertEquals("50.00", model.rechargeMonthAmount)
+        assertEquals("1", model.rechargeMonthCount)
     }
 
     @Test
@@ -93,7 +116,7 @@ class ModelsTest {
             month = "2026-11",
             bill = TestFixtures.json("monthlyBill.json"),
             monthlyError = null,
-            recharge = TestFixtures.json("rechargeByMonth.json"),
+            rechargeRows = rechargeRows(),
             rechargeError = null,
             half = TestFixtures.json("halfYearNoTotal.json"),
             trendError = null,
@@ -101,12 +124,6 @@ class ModelsTest {
         // 官方接口缺失 totalamt 时应按 billList 求和：10.00 + 50.00
         assertEquals("60.00", model.trendTotal)
         assertEquals("", model.trendCount)
-    }
-
-    @Test
-    fun summaryForConsume_fallsBackToBillListSum() {
-        val summary = TradesModel.summaryForConsume(TestFixtures.json("halfYearNoTotal.json"))
-        assertEquals("本月消费 ¥60.00", summary)
     }
 
     @Test
@@ -121,11 +138,6 @@ class ModelsTest {
         assertEquals("+¥50.00", items[1].amount)
         assertFalse(items[1].negative)
         assertEquals("2026-11-12 12:30:00", items[0].time)
-
-        val model = TradesModel("2026-11", TradeType.ALL, "", items, page = 0, totalPages = 3, error = null)
-        assertTrue(model.hasMore)
-        assertEquals(false, model.copy(page = 2).hasMore)
-        assertEquals(false, model.copy(totalPages = 0).hasMore)
     }
 
     @Test
@@ -142,16 +154,42 @@ class ModelsTest {
     }
 
     @Test
-    fun tradesModel_summaries() {
-        val consume = TradesModel.summaryForConsume(TestFixtures.json("halfYear.json"))
-        assertEquals("本月消费 ¥60.00，共 3 笔", consume)
-
-        val recharge = TradesModel.summaryForRecharge(TestFixtures.json("rechargeByMonth.json"))
-        assertEquals("本月充值 ¥10.00，共 1 笔", recharge)
-
-        val empty = TradesModel.summaryForRecharge(JSONObject())
-        assertEquals("本月暂无充值记录", empty)
+    fun billRecharge_groupsByMonthFromRechargeTrades() {
+        val months = listOf("2026-06", "2026-07", "2026-08", "2026-09", "2026-10", "2026-11")
+        val items = listOf(
+            TradeItem("校园卡充值", "2026-09-10 09:00:00", "+¥200.00", false, "200.00", "2026-09"),
+            TradeItem("校园卡充值", "2026-09-20 09:00:00", "+¥100.00", false, "100.00", "2026-09"),
+            TradeItem("校园卡充值", "2026-11-08 18:20:00", "+¥14.00", false, "14.00", "2026-11"),
+            // 不在近半年范围内，应被忽略
+            TradeItem("校园卡充值", "2025-12-01 09:00:00", "+¥50.00", false, "50.00", "2025-12"),
+        )
+        val rows = BillRecharge.monthly(items, months)
+        assertEquals(2, rows.size)
+        assertEquals("2026-11", rows[0].month)
+        assertEquals("14.00", rows[0].amount)
+        assertEquals("1", rows[0].count)
+        assertEquals(0.0467f, rows[0].fraction, 0.001f)
+        assertEquals("2026-09", rows[1].month)
+        assertEquals("300.00", rows[1].amount)
+        assertEquals("2", rows[1].count)
+        assertEquals(1.0f, rows[1].fraction, 0.001f)
     }
+
+    @Test
+    fun tradeItem_carriesRawAmountAndMonth() {
+        val page = TradesModel.parsePage(TestFixtures.json("trades.json"))
+        assertEquals("50.00", page.items[1].yuan)
+        assertEquals("2026-11", page.items[1].month)
+        assertEquals("-12.30", page.items[0].yuan)
+    }
+
+    private fun rechargeRows(): List<cn.edu.buaa.scp.model.RechargeRow> = BillRecharge.monthly(
+        listOf(
+            TradeItem("校园卡充值", "2026-09-10 09:00:00", "+¥50.00", false, "50.00", "2026-09"),
+            TradeItem("校园卡充值", "2026-06-10 09:00:00", "+¥10.00", false, "10.00", "2026-06"),
+        ),
+        listOf("2026-06", "2026-07", "2026-08", "2026-09", "2026-10", "2026-11"),
+    )
 
     @Test
     fun tradeType_fromId() {

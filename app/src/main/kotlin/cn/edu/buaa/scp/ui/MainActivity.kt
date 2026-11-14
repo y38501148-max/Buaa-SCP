@@ -15,7 +15,7 @@ import cn.edu.buaa.scp.ScpApp
 import cn.edu.buaa.scp.databinding.ActivityMainBinding
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
-/** 主界面：底部四个标签页（首页 / 账单 / 流水 / 设置）。卡务功能已合并进首页「其他」。 */
+/** 主界面：底部四个标签页（首页 / 账单 / 财务 / 设置）。卡务功能已合并进首页「其他」。 */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
@@ -149,22 +149,22 @@ class MainActivity : AppCompatActivity() {
     companion object {
 
         private const val KEY_TAB = "tab"
-        private val TAGS = arrayOf("home", "bills", "trades", "settings")
+        private val TAGS = arrayOf("home", "bills", "finance", "settings")
         private val TAB_IDS = intArrayOf(
-            R.id.nav_home, R.id.nav_bills, R.id.nav_trades, R.id.nav_settings,
+            R.id.nav_home, R.id.nav_bills, R.id.nav_finance, R.id.nav_settings,
         )
 
         private fun createFragment(index: Int): Fragment = when (index) {
             0 -> HomeFragment()
             1 -> BillsFragment()
-            2 -> TradesFragment()
+            2 -> FinanceFragment()
             else -> SettingsFragment()
         }
 
         private fun titleOf(index: Int): String = when (index) {
             0 -> "通财航"
             1 -> "账单"
-            2 -> "消费流水"
+            2 -> "财务"
             else -> "设置"
         }
     }

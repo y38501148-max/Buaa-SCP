@@ -24,7 +24,7 @@ import com.google.android.material.card.MaterialCardView
  * 首页：
  * 1. 校园卡显示（余额 / 状态）
  * 2. 网费显示（校园网流量 / 充值入口）
- * 3. 快捷入口（账单 / 流水 / 充值 / 其他）
+ * 3. 快捷入口（账单 / 财务 / 充值 / 其他）
  * 4. 账户信息
  */
 class HomeFragment : ScpFragment() {
@@ -347,8 +347,8 @@ class HomeFragment : ScpFragment() {
             QuickEntry("账单", R.drawable.ic_bill, R.color.brand_blue, R.color.brand_blue_soft) {
                 (activity as? MainActivity)?.switchTab(R.id.nav_bills)
             },
-            QuickEntry("流水", R.drawable.ic_trade, R.color.brand_teal, R.color.brand_teal_soft) {
-                (activity as? MainActivity)?.switchTab(R.id.nav_trades)
+            QuickEntry("财务", R.drawable.ic_finance, R.color.brand_teal, R.color.brand_teal_soft) {
+                (activity as? MainActivity)?.switchTab(R.id.nav_finance)
             },
             QuickEntry("充值", R.drawable.ic_recharge, R.color.brand_gold_deep, R.color.brand_gold_soft) {
                 startActivity(Intent(requireContext(), RechargeActivity::class.java))
