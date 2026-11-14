@@ -38,6 +38,24 @@ class ScpApp : Application() {
     var session: SessionData? = null
         private set
 
+    /** 仅 debug 构建使用：不连网，用本地示例数据渲染界面，便于截图和布局检查。 */
+    @Volatile
+    var demoMode: Boolean = false
+        private set
+
+    fun enterDemoMode() {
+        demoMode = true
+        val now = System.currentTimeMillis()
+        session = SessionData(
+            studentId = "20000000",
+            openid = "DEMO0000000000000000",
+            castgc = "demo-castgc",
+            jsessionid = "demo-jsessionid",
+            savedAt = now - 2 * 60 * 60 * 1000L,
+            lastSyncAt = now - 5 * 60 * 1000L,
+        )
+    }
+
     override fun onCreate() {
         super.onCreate()
         instance = this
@@ -56,7 +74,21 @@ class ScpApp : Application() {
         }
     }
 
-    fun hasSession(): Boolean = session?.hasAnything == true
+    fun hasSession(): Boolean = demoMode || session?.hasAnything == true
+
+    @Volatile
+    private var homeRequested = false
+
+    /** 充值完成后请求宿主页面回到首页。 */
+    fun requestHome() {
+        homeRequested = true
+    }
+
+    fun consumeHomeRequest(): Boolean {
+        val requested = homeRequested
+        homeRequested = false
+        return requested
+    }
 
     fun openid(): String = session?.openid.orEmpty()
 
@@ -162,6 +194,7 @@ class ScpApp : Application() {
 
     fun logout() {
         synchronized(stateLock) {
+            demoMode = false
             session = null
             jar.clear()
             store.clearSession()

@@ -81,7 +81,7 @@ orgid: 2
 **结论**：客户端最适合承担「入口」而不是「收银台」。充值页面本身已经把金额校验、渠道选择、
 第三方支付跳转和结果页都做好了，复用官方页面既少写代码，也避免把资金操作和卡密码带进客户端。
 
-## 4. 航财通的统一认证链路（v0.3.0 补充）
+## 4. 航财通的统一认证链路（v0.3.0 起）
 
 航财通（校园付）的登录页本身提供「统一认证登录」：
 
@@ -124,10 +124,14 @@ GET https://www.cc-pay.cn/login?channel=BUAASSO
 `ui/RechargeActivity.kt`：
 
 1. 进入前检查本地会话；必要时用 `CASTGC` 续期；
-2. 把 `JSESSIONID` 注入 `WebView` 的 `CookieManager`（仅 `m.icw.buaa.edu.cn`）；
+2. 把 `JSESSIONID` 注入 `WebView` 的 `CookieManager`（`m.icw.buaa.edu.cn`），
+   同时把 `CASTGC` 注入 `sso.buaa.edu.cn`；
 3. 打开上面的官方充值页，`openid` 放在 hash 路由的 query 里；
-4. 处理 `weixin://`、`alipays://`、`intent://` 等外部跳转；
-5. 退出时清掉注入的 `JSESSIONID`，并销毁 WebView。
+4. 处理 `weixin://`、`alipays://`、`intent://` 等外部支付跳转；
+5. 支付完成回到 App 后，识别成功页并自动返回通财航首页；
+6. 退出时清掉注入的两份 Cookie，并销毁 WebView。
+
+充值页顶部不再显示说明横幅，刷新改到 Toolbar 的刷新按钮。
 
 客户端**不会**：
 

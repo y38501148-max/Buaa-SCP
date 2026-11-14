@@ -3,6 +3,7 @@ package cn.edu.buaa.scp.ui
 import android.content.Context
 import android.view.Gravity
 import android.widget.HorizontalScrollView
+import android.widget.ImageView
 import android.widget.LinearLayout
 import androidx.lifecycle.lifecycleScope
 import cn.edu.buaa.scp.R
@@ -32,6 +33,16 @@ class TradesFragment : ScpFragment() {
     private var moreJob: Job? = null
 
     override suspend fun load() {
+        if (app.demoMode) {
+            items.clear()
+            items.addAll(Demo.trades())
+            summary = Demo.TRADE_SUMMARY
+            page = 0
+            totalPages = 1
+            lastPageCount = items.size
+            render(null)
+            return
+        }
         val current = month
         val currentType = type
         val (start, end) = Json.monthRange(current)
@@ -86,50 +97,95 @@ class TradesFragment : ScpFragment() {
     private fun addHeader(context: Context) {
         val card = Ui.addCard(body)
         val row = Ui.row(context)
-        row.addView(Ui.chip(context, "‹ 上月", selected = false) { shiftMonth(-1) })
+        row.addView(
+            Ui.iconButton(context, R.drawable.ic_chevron_left, "上一个月") { shiftMonth(-1) },
+        )
 
-        val label = Ui.text(context, Json.monthLabel(month), 17f, R.color.text_primary, bold = true)
-        label.gravity = Gravity.CENTER
-        row.addView(label, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(
+            monthSelector(context, month),
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
+        )
 
         val canNext = month != Json.currentMonth()
-        val next = Ui.chip(context, "下月 ›", selected = false) { shiftMonth(1) }
-        next.isEnabled = canNext
-        next.alpha = if (canNext) 1f else 0.35f
-        row.addView(next)
+        row.addView(
+            Ui.iconButton(context, R.drawable.ic_chevron_right, "下一个月", enabled = canNext) {
+                shiftMonth(1)
+            },
+        )
         card.addView(row)
     }
 
-    private fun addTypeChips(context: Context) {
-        val card = Ui.addCard(body)
-        card.addView(Ui.text(context, "交易类型", 13f, R.color.text_secondary))
+    private fun monthSelector(context: Context, current: String): LinearLayout {
+        val selector = Ui.row(context).apply {
+            gravity = Gravity.CENTER
+            isClickable = true
+            isFocusable = true
+            foreground = Ui.selectableForeground(context)
+            setPadding(Ui.dp(context, 10f), Ui.dp(context, 6f), Ui.dp(context, 10f), Ui.dp(context, 6f))
+            setOnClickListener {
+                MonthPicker.show(context, month) { picked ->
+                    month = picked
+                    reset()
+                }
+            }
+        }
+        selector.addView(
+            Ui.text(context, Json.monthLabel(current), 16f, R.color.text_primary, bold = true),
+        )
+        selector.addView(
+            ImageView(context).apply {
+                setImageResource(R.drawable.ic_chevron_down)
+                imageTintList = Ui.tint(Ui.color(context, R.color.text_hint))
+                contentDescription = "选择年月"
+            },
+            LinearLayout.LayoutParams(Ui.dp(context, 18f), Ui.dp(context, 18f)).apply {
+                marginStart = Ui.dp(context, 2f)
+            },
+        )
+        return selector
+    }
 
-        val scroll = HorizontalScrollView(context).apply { isHorizontalScrollBarEnabled = false }
+    private fun addTypeChips(context: Context) {
+        val scroll = HorizontalScrollView(context).apply {
+            isHorizontalScrollBarEnabled = false
+            clipToPadding = false
+        }
         val chipRow = Ui.row(context)
         scroll.addView(chipRow)
-        TradeType.entries.forEach { entry ->
+        TradeType.entries.forEachIndexed { index, entry ->
             val chip = Ui.chip(context, entry.label, selected = type == entry) { selectType(entry) }
+            chip.contentDescription = "筛选：${entry.label}"
             chipRow.addView(
                 chip,
                 LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT,
-                ).apply { rightMargin = Ui.dp(context, 8f) },
+                ).apply { if (index > 0) marginStart = Ui.dp(context, 8f) },
             )
         }
-        card.addView(
+        body.addView(
             scroll,
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply { topMargin = Ui.dp(context, 8f) },
+            ).apply { bottomMargin = Ui.dp(context, 14f) },
         )
     }
 
     private fun addSummary(context: Context) {
         if (summary.isBlank()) return
         val card = Ui.addCard(body)
-        card.addView(Ui.text(context, summary, 13f, R.color.text_primary))
+        val row = Ui.row(context)
+        row.addView(
+            Ui.iconTile(context, R.drawable.ic_info, R.color.brand_gold_deep, R.color.brand_gold_soft, 38),
+        )
+        row.addView(
+            Ui.text(context, summary, 13f, R.color.text_primary, bold = true),
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                marginStart = Ui.dp(context, 12f)
+            },
+        )
+        card.addView(row)
     }
 
     private fun addList(context: Context, error: String?) {
@@ -144,32 +200,52 @@ class TradesFragment : ScpFragment() {
         if (items.isEmpty()) {
             card.addView(
                 Ui.text(context, "未查询到记录", 12f, R.color.text_hint),
-                Ui.rowParams(context, 6f),
+                Ui.rowParams(context, 8f),
             )
             return
         }
         items.forEachIndexed { index, item ->
             addTradeRow(context, card, item)
-            if (index < items.lastIndex) Ui.divider(card)
+            if (index < items.lastIndex) Ui.divider(card, 50f)
         }
     }
 
     private fun addTradeRow(context: Context, parent: LinearLayout, item: TradeItem) {
         val line = Ui.row(context)
+        line.addView(
+            Ui.iconTile(
+                context,
+                R.drawable.ic_trade,
+                if (item.negative) R.color.red else R.color.green,
+                if (item.negative) R.color.brand_red_soft else R.color.brand_green_soft,
+                38,
+            ),
+        )
+
         val left = Ui.column(context)
-        left.addView(Ui.text(context, item.merchant, 14f, R.color.text_primary))
-        left.addView(Ui.text(context, item.time, 11f, R.color.text_hint), Ui.rowParams(context, 3f))
-        line.addView(left, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        left.addView(
+            Ui.text(context, item.merchant, 13.5f, R.color.text_primary, bold = true),
+        )
+        left.addView(
+            Ui.text(context, item.time, 11f, R.color.text_hint),
+            Ui.rowParams(context, 3f),
+        )
+        line.addView(
+            left,
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                marginStart = Ui.dp(context, 12f)
+            },
+        )
 
         val amount = Ui.text(
             context,
             item.amount,
-            15f,
+            14.5f,
             if (item.negative) R.color.red else R.color.green,
             bold = true,
         ).apply { gravity = Gravity.END }
         line.addView(amount)
-        parent.addView(line, Ui.rowParams(context, 8f))
+        parent.addView(line, Ui.rowParams(context, 7f))
     }
 
     private fun addFooter(context: Context) {
@@ -188,7 +264,7 @@ class TradesFragment : ScpFragment() {
         } else {
             val end = Ui.text(context, "没有更多数据了", 12f, R.color.text_hint)
             end.gravity = Gravity.CENTER
-            body.addView(end, Ui.rowParams(context, 8f))
+            body.addView(end, Ui.rowParams(context, 10f))
         }
     }
 

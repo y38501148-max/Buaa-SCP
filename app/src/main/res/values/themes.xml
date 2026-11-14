@@ -2,35 +2,87 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
 
     <style name="Theme.Scp" parent="Theme.MaterialComponents.Light.NoActionBar">
-        <item name="colorPrimary">@color/buaa_blue</item>
-        <item name="colorPrimaryVariant">@color/buaa_blue_dark</item>
+        <item name="colorPrimary">@color/brand_blue</item>
+        <item name="colorPrimaryVariant">@color/brand_navy</item>
         <item name="colorOnPrimary">@color/white</item>
-        <item name="colorSecondary">@color/buaa_blue</item>
-        <item name="colorSecondaryVariant">@color/buaa_blue_dark</item>
-        <item name="colorOnSecondary">@color/white</item>
+        <item name="colorSecondary">@color/brand_gold</item>
+        <item name="colorSecondaryVariant">@color/brand_gold_deep</item>
+        <item name="colorOnSecondary">@color/brand_navy</item>
         <item name="android:colorBackground">@color/bg</item>
         <item name="android:windowBackground">@color/bg</item>
-        <item name="android:statusBarColor">@color/buaa_blue_dark</item>
-        <item name="android:navigationBarColor">@color/white</item>
-        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">@color/surface</item>
+        <item name="android:navigationBarColor">@color/surface</item>
+        <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowLightNavigationBar" tools:targetApi="27">true</item>
+        <item name="android:fontFamily">@font/noto_sans_sc</item>
+        <item name="fontFamily">@font/noto_sans_sc</item>
+        <item name="colorControlHighlight">@color/brand_blue_soft</item>
         <item name="materialAlertDialogTheme">@style/ThemeOverlay.Scp.Dialog</item>
     </style>
 
+    <style name="Theme.Scp.Splash" parent="Theme.Scp">
+        <item name="android:windowBackground">@color/launcher_blue</item>
+        <item name="android:statusBarColor">@color/launcher_blue</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
     <style name="ThemeOverlay.Scp.Dialog" parent="ThemeOverlay.MaterialComponents.MaterialAlertDialog">
-        <item name="colorPrimary">@color/buaa_blue</item>
+        <item name="colorPrimary">@color/brand_blue</item>
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.Scp.Dialog</item>
+    </style>
+
+    <style name="ShapeAppearance.Scp.Dialog" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">22dp</item>
+    </style>
+
+    <style name="ShapeAppearance.Scp.Card" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">20dp</item>
+    </style>
+
+    <style name="ShapeAppearance.Scp.Pill" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">999dp</item>
+    </style>
+
+    <style name="ShapeAppearance.Scp.NavIndicator" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">15dp</item>
     </style>
 
     <style name="Widget.Scp.Card" parent="Widget.MaterialComponents.CardView">
-        <item name="cardCornerRadius">18dp</item>
-        <item name="cardElevation">0dp</item>
-        <item name="strokeWidth">1dp</item>
-        <item name="strokeColor">@color/divider</item>
+        <item name="cardCornerRadius">20dp</item>
+        <item name="cardElevation">1dp</item>
+        <item name="strokeWidth">0dp</item>
         <item name="cardBackgroundColor">@color/surface</item>
+        <item name="rippleColor">@color/brand_blue_soft</item>
     </style>
 
-    <style name="TextAppearance.Scp.SectionTitle" parent="TextAppearance.MaterialComponents.Subtitle1">
-        <item name="android:textSize">15sp</item>
+    <style name="Widget.Scp.TextField" parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+        <item name="boxCornerRadiusTopStart">14dp</item>
+        <item name="boxCornerRadiusTopEnd">14dp</item>
+        <item name="boxCornerRadiusBottomStart">14dp</item>
+        <item name="boxCornerRadiusBottomEnd">14dp</item>
+        <item name="boxStrokeColor">@color/text_field_stroke</item>
+        <item name="boxStrokeWidth">1dp</item>
+        <item name="boxStrokeWidthFocused">1.5dp</item>
+        <item name="boxBackgroundColor">@color/surface</item>
+        <item name="hintTextColor">@color/text_hint</item>
+        <item name="errorTextColor">@color/red</item>
+        <item name="errorIconTint">@color/red</item>
+        <item name="boxBackgroundMode">outline</item>
+    </style>
+
+    <style name="TextAppearance.Scp.SectionLabel" parent="TextAppearance.MaterialComponents.Caption">
+        <item name="android:textSize">12sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/text_secondary</item>
+        <item name="android:letterSpacing">0.06</item>
+    </style>
+
+    <style name="TextAppearance.Scp.CardTitle" parent="TextAppearance.MaterialComponents.Subtitle1">
+        <item name="android:textSize">16sp</item>
         <item name="android:textStyle">bold</item>
         <item name="android:textColor">@color/text_primary</item>
     </style>
@@ -38,7 +90,31 @@
     <style name="TextAppearance.Scp.Body" parent="TextAppearance.MaterialComponents.Body2">
         <item name="android:textSize">13sp</item>
         <item name="android:textColor">@color/text_secondary</item>
+        <item name="android:includeFontPadding">false</item>
         <item name="android:lineSpacingExtra">4dp</item>
+    </style>
+
+    <style name="TextAppearance.Scp.Toolbar" parent="TextAppearance.MaterialComponents.Headline6">
+        <item name="android:textSize">20sp</item>
+        <item name="android:fontFamily">@font/noto_sans_sc</item>
+        <item name="fontFamily">@font/noto_sans_sc</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:letterSpacing">0.01</item>
+    </style>
+
+    <style name="TextAppearance.Scp.NavLabel" parent="TextAppearance.MaterialComponents.Caption">
+        <item name="android:fontFamily">@font/noto_sans_sc</item>
+        <item name="android:textSize">11sp</item>
+        <item name="android:letterSpacing">0.01</item>
+    </style>
+
+    <style name="Widget.Scp.BottomNavIndicator" parent="Widget.Material3.BottomNavigationView.ActiveIndicator">
+        <item name="android:color">@color/nav_indicator</item>
+        <item name="android:width">56dp</item>
+        <item name="android:height">30dp</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.Scp.NavIndicator</item>
     </style>
 
 </resources>

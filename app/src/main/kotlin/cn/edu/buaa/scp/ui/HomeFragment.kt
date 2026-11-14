@@ -2,18 +2,26 @@ package cn.edu.buaa.scp.ui
 
 import android.content.Context
 import android.content.Intent
-import android.graphics.Typeface
+import android.view.Gravity
+import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import cn.edu.buaa.scp.R
 import cn.edu.buaa.scp.model.HomeModel
 import cn.edu.buaa.scp.net.resultOf
 import cn.edu.buaa.scp.util.Json
+import com.google.android.material.card.MaterialCardView
 
 /** 首页：余额、卡状态、账户信息、通知、快捷入口与官方充值入口。 */
 class HomeFragment : ScpFragment() {
 
     override suspend fun load() {
+        if (app.demoMode) {
+            render(Demo.home())
+            return
+        }
         val openid = app.openid()
         val home = resultOf { app.withRecovery { app.api.openHomePageApp(openid) } }
         val pay = resultOf { app.withRecovery { app.api.openCardPay() } }
@@ -39,22 +47,9 @@ class HomeFragment : ScpFragment() {
 
         addBalanceCard(context, model)
         addQuickActions(context)
+        addAccountSection(context, model)
 
-        val info = Ui.addSection(body, "账户信息")
-        Ui.addKv(info, "姓名", Json.or(model.name, "—"))
-        Ui.addKv(info, "学号 / 工号", Json.or(model.studentId, "—"))
-        Ui.addKv(info, "卡号", Json.or(model.idserial, "—"))
-        Ui.addKv(info, "卡类型", model.cardType)
-
-        if (model.notices.isNotEmpty()) {
-            val notices = Ui.addSection(body, "消息通知")
-            model.notices.forEach { notice -> Ui.addKv(notices, "·", notice) }
-        }
-
-        if (model.channels.isNotEmpty()) {
-            val channels = Ui.addSection(body, "支付渠道")
-            model.channels.forEach { Ui.addKv(channels, it) }
-        }
+        if (model.notices.isNotEmpty()) addNotices(context, model)
 
         if (model.bothFailed) {
             addErrorCard("余额加载失败：${Json.or(model.payError, model.homeError ?: "未知错误")}") {
@@ -64,87 +59,231 @@ class HomeFragment : ScpFragment() {
     }
 
     private fun addBalanceCard(context: Context, model: HomeModel) {
-        val card = Ui.column(context).apply {
-            setBackgroundResource(R.drawable.bg_balance_card)
-            val pad = Ui.dp(context, 20f)
-            setPadding(pad, pad, pad, pad)
+        val hero = FrameLayout(context).apply {
+            setBackgroundResource(R.drawable.bg_hero)
+            clipToOutline = true
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply { bottomMargin = Ui.dp(context, 12f) }
+            ).apply { bottomMargin = Ui.dp(context, 14f) }
         }
-        body.addView(card)
 
-        val headRow = Ui.row(context)
-        headRow.addView(
-            Ui.text(context, "校园卡余额", 13f, R.color.white).apply {
+        // 背景装饰：右上角冷光、左下角香槟光。
+        hero.addView(
+            View(context).apply { setBackgroundResource(R.drawable.bg_hero_glow) },
+            FrameLayout.LayoutParams(Ui.dp(context, 190f), Ui.dp(context, 190f)).apply {
+                gravity = Gravity.TOP or Gravity.END
+                topMargin = -Ui.dp(context, 76f)
+                marginEnd = -Ui.dp(context, 58f)
+            },
+        )
+
+        val content = Ui.column(context).apply {
+            setPadding(Ui.dp(context, 20f), Ui.dp(context, 18f), Ui.dp(context, 20f), Ui.dp(context, 18f))
+        }
+        hero.addView(
+            content,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ),
+        )
+
+        val top = Ui.row(context)
+        top.addView(
+            Ui.text(context, "校园卡余额", 12.5f, R.color.white, letterSpacing = 0.04f).apply {
                 setTextColor(0xCCFFFFFF.toInt())
             },
             LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
         )
-        headRow.addView(rechargeButton(context))
-        card.addView(headRow)
-
-        val amount = Ui.text(
-            context,
-            if (model.balance.isEmpty()) "¥ --" else "¥ ${model.balance}",
-            36f,
-            R.color.white,
-            bold = true,
-        ).apply { typeface = Typeface.DEFAULT_BOLD }
-        card.addView(amount, Ui.rowParams(context, 2f))
-
-        val statusRow = Ui.row(context)
-        statusRow.addView(Ui.statusDot(context, model.statusNormal))
-        statusRow.addView(
-            Ui.text(context, "状态：${Json.or(model.status, "未知")}", 13f, R.color.white)
-                .apply { setTextColor(0xE6FFFFFF.toInt()) },
-        )
-        card.addView(statusRow, Ui.rowParams(context, 10f))
-
-        val time = Json.time(model.updatedAt)
-        if (time.isNotEmpty()) {
-            card.addView(
-                Ui.text(context, "更新于 $time", 11f, R.color.white)
-                    .apply { setTextColor(0x99FFFFFF.toInt()) },
-                Ui.rowParams(context, 6f),
-            )
-        }
-    }
-
-    /** 余额卡右上角的「去充值」：打开学校官方充值页。 */
-    private fun rechargeButton(context: Context): android.widget.TextView =
-        Ui.text(context, "去充值", 13f, R.color.buaa_blue, bold = true).apply {
-            gravity = android.view.Gravity.CENTER
-            setPadding(Ui.dp(context, 14f), Ui.dp(context, 6f), Ui.dp(context, 14f), Ui.dp(context, 6f))
-            setBackgroundResource(R.drawable.bg_chip)
+        val recharge = Ui.text(context, "去充值", 12.5f, R.color.gold_pill_text, bold = true).apply {
+            gravity = Gravity.CENTER
+            setPadding(Ui.dp(context, 14f), Ui.dp(context, 7f), Ui.dp(context, 14f), Ui.dp(context, 7f))
+            setBackgroundResource(R.drawable.bg_pill_gold)
+            isClickable = true
+            isFocusable = true
+            foreground = Ui.selectableForeground(context)
             setOnClickListener {
                 startActivity(Intent(requireContext(), RechargeActivity::class.java))
             }
         }
+        top.addView(recharge)
+        content.addView(top)
+
+        val amountRow = Ui.row(context)
+        amountRow.addView(
+            Ui.text(context, "¥", 22f, R.color.white, bold = true).apply {
+                setTextColor(0xE6FFFFFF.toInt())
+                setPadding(0, Ui.dp(context, 8f), Ui.dp(context, 5f), 0)
+            },
+        )
+        amountRow.addView(
+            Ui.text(
+                context,
+                if (model.balance.isEmpty()) "--" else model.balance,
+                38f,
+                R.color.white,
+                bold = true,
+                letterSpacing = -0.02f,
+            ),
+        )
+        content.addView(amountRow, Ui.rowParams(context, 2f))
+
+        val status = Ui.row(context)
+        status.addView(Ui.statusDot(context, model.statusNormal))
+        status.addView(
+            Ui.text(
+                context,
+                Json.or(model.status, "状态未知"),
+                12.5f,
+                R.color.white,
+            ).apply { setTextColor(0xE0FFFFFF.toInt()) },
+        )
+        content.addView(status, Ui.rowParams(context, 10f))
+
+        content.addView(
+            View(context).apply { setBackgroundColor(0x1FFFFFFF) },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                Ui.dp(context, 1f),
+            ).apply { topMargin = Ui.dp(context, 14f) },
+        )
+
+        val bottom = Ui.row(context)
+        val time = Json.time(model.updatedAt)
+        bottom.addView(
+            Ui.text(
+                context,
+                if (time.isEmpty()) "刚刚更新" else "更新于 $time",
+                10.5f,
+                R.color.white,
+            ).apply { setTextColor(0x8FFFFFFF.toInt()) },
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
+        )
+        bottom.addView(
+            Ui.text(context, "通财航", 10f, R.color.brand_gold, bold = true, letterSpacing = 0.18f),
+        )
+        content.addView(bottom, Ui.rowParams(context, 10f))
+
+        body.addView(hero)
+    }
 
     private fun addQuickActions(context: Context) {
-        val card = Ui.addCard(body)
-        card.addView(Ui.text(context, "快捷入口", 15f, R.color.text_primary, bold = true))
+        Ui.sectionHeader(body, "快捷入口")
         val row = Ui.row(context)
         val entries = listOf(
-            "账单" to R.id.nav_bills,
-            "流水" to R.id.nav_trades,
-            "卡务" to R.id.nav_card,
+            QuickEntry("账单", R.drawable.ic_bill, R.color.brand_blue, R.color.brand_blue_soft) {
+                (activity as? MainActivity)?.switchTab(R.id.nav_bills)
+            },
+            QuickEntry("流水", R.drawable.ic_trade, R.color.brand_teal, R.color.brand_teal_soft) {
+                (activity as? MainActivity)?.switchTab(R.id.nav_trades)
+            },
+            QuickEntry("卡务", R.drawable.ic_card, R.color.brand_gold_deep, R.color.brand_gold_soft) {
+                (activity as? MainActivity)?.switchTab(R.id.nav_card)
+            },
+            QuickEntry("充值", R.drawable.ic_recharge, R.color.brand_blue, R.color.brand_navy_soft) {
+                startActivity(Intent(requireContext(), RechargeActivity::class.java))
+            },
         )
-        entries.forEachIndexed { index, (title, tabId) ->
-            val button = Ui.lightButton(context, title)
-            button.setOnClickListener {
-                (activity as? MainActivity)?.switchTab(tabId)
-            }
+        entries.forEachIndexed { index, entry ->
+            val tile = quickTile(context, entry)
             row.addView(
-                button,
-                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                    topMargin = Ui.dp(context, 10f)
-                    if (index > 0) leftMargin = Ui.dp(context, 8f)
+                tile,
+                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    if (index > 0) marginStart = Ui.dp(context, 8f)
                 },
             )
         }
-        card.addView(row)
+        body.addView(row, Ui.lp(context = context, bottom = 16f))
     }
+
+    private fun quickTile(context: Context, entry: QuickEntry): MaterialCardView {
+        val card = MaterialCardView(context).apply {
+            radius = Ui.dp(context, 18f).toFloat()
+            cardElevation = Ui.dp(context, 1f).toFloat()
+            strokeWidth = 0
+            setCardBackgroundColor(Ui.color(context, R.color.surface))
+            rippleColor = Ui.tint(Ui.color(context, R.color.brand_blue_soft))
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { entry.onClick() }
+        }
+        val column = Ui.column(context).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(Ui.dp(context, 8f), Ui.dp(context, 14f), Ui.dp(context, 8f), Ui.dp(context, 12f))
+        }
+        val icon = Ui.iconTile(context, entry.icon, entry.tint, entry.bg, 38)
+        column.addView(icon)
+        column.addView(
+            Ui.text(context, entry.label, 12f, R.color.text_primary, bold = true).apply {
+                gravity = Gravity.CENTER
+            },
+            Ui.rowParams(context, 8f),
+        )
+        card.addView(column)
+        return card
+    }
+
+    private fun addAccountSection(context: Context, model: HomeModel) {
+        val info = Ui.addSection(body, "账户信息")
+        val profile = Ui.row(context)
+        profile.addView(Ui.avatar(context, model.name))
+        val names = Ui.column(context)
+        names.addView(
+            Ui.text(context, Json.or(model.name, "校园卡用户"), 16f, R.color.text_primary, bold = true),
+        )
+        names.addView(
+            Ui.text(
+                context,
+                if (model.studentId.isEmpty()) "学号 —" else "学号 ${model.studentId}",
+                12f,
+                R.color.text_hint,
+            ),
+            Ui.rowParams(context, 3f),
+        )
+        profile.addView(
+            names,
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                marginStart = Ui.dp(context, 12f)
+            },
+        )
+        info.addView(profile)
+
+        Ui.divider(info)
+        Ui.addKv(info, "卡类型", model.cardType)
+        Ui.addKv(
+            info,
+            "卡状态",
+            Json.or(model.status, "—"),
+            if (model.statusNormal) R.color.green else R.color.orange,
+        )
+    }
+
+    private fun addNotices(context: Context, model: HomeModel) {
+        val notices = Ui.addSection(body, "消息通知")
+        model.notices.forEachIndexed { index, notice ->
+            val line = Ui.row(context)
+            line.addView(
+                View(context).apply {
+                    setBackgroundResource(R.drawable.bg_dot_warn)
+                },
+                LinearLayout.LayoutParams(Ui.dp(context, 6f), Ui.dp(context, 6f)).apply {
+                    marginEnd = Ui.dp(context, 10f)
+                },
+            )
+            line.addView(
+                Ui.text(context, notice, 13f, R.color.text_primary),
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
+            )
+            notices.addView(line, Ui.rowParams(context, if (index == 0) 8f else 10f))
+        }
+    }
+
+    private data class QuickEntry(
+        val label: String,
+        val icon: Int,
+        val tint: Int,
+        val bg: Int,
+        val onClick: () -> Unit,
+    )
 }

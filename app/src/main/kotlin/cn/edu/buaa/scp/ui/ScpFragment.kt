@@ -47,9 +47,13 @@ abstract class ScpFragment : Fragment() {
         binding = inflated
         swipe = inflated.root.findViewById(R.id.swipe)
         body = inflated.root.findViewById(R.id.body)
-        swipe.setColorSchemeResources(R.color.buaa_blue)
+        swipe.setColorSchemeResources(R.color.brand_blue, R.color.brand_gold)
         swipe.setOnRefreshListener { refresh() }
-        body.addView(Ui.text(requireContext(), "正在加载…", 13f, R.color.text_hint))
+        body.addView(
+            Ui.text(requireContext(), "正在加载…", 13f, R.color.text_hint).apply {
+                setPadding(0, Ui.dp(requireContext(), 24f), 0, 0)
+            },
+        )
         return inflated.root
     }
 
@@ -111,7 +115,13 @@ abstract class ScpFragment : Fragment() {
         if (retry != null) {
             val button = Ui.lightButton(requireContext(), "重试")
             button.setOnClickListener { retry() }
-            card.addView(button, Ui.rowParams(context, 4f))
+            card.addView(
+                button,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { topMargin = Ui.dp(context, 10f) },
+            )
         }
     }
 

@@ -41,6 +41,10 @@ class RechargeActivity : AppCompatActivity() {
     private lateinit var app: ScpApp
     private var loaded = false
     private var targetUrl = ""
+    private var successHandled = false
+    private var successAttempts = 0
+    private var paymentStarted = false
+    private var leftForPayment = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,7 +54,14 @@ class RechargeActivity : AppCompatActivity() {
 
         applyEdgeToEdgeInsets()
         binding.toolbar.setNavigationOnClickListener { finish() }
-        binding.btnReload.setOnClickListener { openPage() }
+        binding.toolbar.setOnMenuItemClickListener { item ->
+            if (item.itemId == R.id.action_reload) {
+                openPage()
+                true
+            } else {
+                false
+            }
+        }
         binding.btnStateAction.setOnClickListener { openPage() }
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -68,12 +79,13 @@ class RechargeActivity : AppCompatActivity() {
 
     private fun applyEdgeToEdgeInsets() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = true
+            isAppearanceLightNavigationBars = true
+        }
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            binding.toolbar.setPadding(
-                binding.toolbar.paddingLeft, bars.top,
-                binding.toolbar.paddingRight, binding.toolbar.paddingBottom,
-            )
+            Ui.applyToolbarTopInset(binding.toolbar, bars.top)
             insets
         }
         ViewCompat.requestApplyInsets(binding.root)
@@ -123,7 +135,14 @@ class RechargeActivity : AppCompatActivity() {
                 binding.progress.visibility = View.GONE
                 if (url != null && url.contains("/pages/common/fail/fail")) {
                     showState("充值页会话已失效，请返回重新登录后再试", action = true)
+                    return
                 }
+            }
+
+            override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
+                super.doUpdateVisitedHistory(view, url, isReload)
+                if (isPaymentHost(url)) paymentStarted = true
+                if (paymentStarted && !successHandled) detectSuccess(url)
             }
 
             override fun onReceivedError(
@@ -207,6 +226,7 @@ class RechargeActivity : AppCompatActivity() {
     }
 
     private fun openExternal(url: String): Boolean {
+        if (isPaymentUrl(url)) leftForPayment = true
         val intent = if (url.startsWith("intent://")) {
             runCatching { Intent.parseUri(url, Intent.URI_INTENT_SCHEME) }.getOrNull()
         } else {
@@ -228,6 +248,75 @@ class RechargeActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * 官方收银台/航财通支付完成后的落地页，命中后直接回首页。
+     *
+     * 只有进入过支付流程（跳转支付 App 或进入收银台域名）才开始判断，
+     * 避免刚打开充值页时把页面里的模板文案误判成支付成功。
+     */
+    private fun detectSuccess(url: String?) {
+        if (!paymentStarted || successHandled || url.isNullOrEmpty()) return
+        if (SUCCESS_URL.containsMatchIn(url)) onSuccess()
+    }
+
+    /**
+     * 官方页面是 uni-app / SPA，支付完成可能只做前端路由切换，不一定触发 onPageFinished。
+     * 这里在页面加载后做短时轮询，读取页面可见文本判断是否出现「支付成功」。
+     */
+    private fun scheduleSuccessCheck() {
+        if (!paymentStarted || successHandled || isFinishing) return
+        binding.webView.postDelayed({
+            if (successHandled || isFinishing) return@postDelayed
+            binding.webView.evaluateJavascript(SUCCESS_SCRIPT) { value ->
+                if (successHandled || isFinishing) return@evaluateJavascript
+                if (value == "\"1\"") {
+                    onSuccess()
+                } else if (successAttempts++ < 12) {
+                    scheduleSuccessCheck()
+                }
+            }
+        }, 900)
+    }
+
+    private fun onSuccess() {
+        if (successHandled) return
+        successHandled = true
+        app.requestHome()
+        Toast.makeText(this, "充值完成", Toast.LENGTH_SHORT).show()
+        binding.webView.postDelayed({
+            if (!isFinishing) finish()
+        }, 900)
+    }
+
+    private fun isPaymentHost(url: String?): Boolean {
+        if (url.isNullOrEmpty()) return false
+        val host = runCatching { Uri.parse(url).host.orEmpty().lowercase() }.getOrDefault("")
+        return PAYMENT_HOSTS.any { host == it || host.endsWith(".$it") }
+    }
+
+    private fun isPaymentUrl(url: String): Boolean {
+        val lower = url.lowercase()
+        return lower.startsWith("weixin://") ||
+                lower.startsWith("alipays://") ||
+                lower.startsWith("alipay://") ||
+                lower.contains("tenpay") ||
+                lower.contains("wxpay") ||
+                lower.contains("cc-pay") ||
+                lower.contains("weixin") ||
+                lower.contains("alipay") ||
+                lower.contains("ccbpay")
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (leftForPayment) {
+            leftForPayment = false
+            paymentStarted = true
+            successAttempts = 0
+            scheduleSuccessCheck()
+        }
+    }
+
     override fun onDestroy() {
         if (loaded) {
             val manager = CookieManager.getInstance()
@@ -242,5 +331,24 @@ class RechargeActivity : AppCompatActivity() {
         binding.webView.loadUrl("about:blank")
         binding.webView.destroy()
         super.onDestroy()
+    }
+
+    private companion object {
+        val SUCCESS_URL = Regex(
+            "(?i)(paysuccess|pay-success|payresult|pay-result|pay_result|" +
+                "rechargesuccess|recharge-success|payment/success|order/success|" +
+                "result=success|paystatus=success)",
+        )
+        val PAYMENT_HOSTS = listOf(
+            "cc-pay.cn",
+            "pass.cc-pay.cn",
+            "tenpay.com",
+            "wx.tenpay.com",
+            "alipay.com",
+            "weixin.qq.com",
+        )
+        const val SUCCESS_SCRIPT =
+            "(function(){try{var t=(document.body&&document.body.innerText)||'';" +
+                "return /支付成功|充值成功|付款成功|交易成功/.test(t)?'1':'0'}catch(e){return '0'}})()"
     }
 }

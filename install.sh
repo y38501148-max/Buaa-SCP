@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# 通过 USB 安装并启动北航校园卡便携客户端（Buaa-SCP）。
+# 通过 USB 安装并启动通财航（Buaa-SCP）。
 #
 # 用法：
 #   ./install.sh                 # 自动找唯一在线设备，优先安装 dist 中的 release APK
@@ -11,9 +11,12 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ADB="${ADB:-adb}"
-APK_DEFAULT="$(ls -1 "$HERE"/dist/BuaaSCP-*-release.apk 2>/dev/null | sort -V | tail -1 || true)"
+APK_DEFAULT="$(ls -1 "$HERE"/dist/TongCaiHang-*-release.apk 2>/dev/null | sort -V | tail -1 || true)"
 if [[ -z "$APK_DEFAULT" ]]; then
   APK_DEFAULT="$(ls -1 "$HERE"/dist/BuaaSCP-*.apk 2>/dev/null | sort -V | tail -1 || true)"
+fi
+if [[ -z "$APK_DEFAULT" ]]; then
+  APK_DEFAULT="$(ls -1 "$HERE"/dist/*.apk 2>/dev/null | sort -V | tail -1 || true)"
 fi
 APK="${1:-$APK_DEFAULT}"
 PKG="cn.edu.buaa.scp"
@@ -29,7 +32,7 @@ EOF
 fi
 
 if [[ -z "$APK" || ! -f "$APK" ]]; then
-  echo "未找到 APK：${APK:-<dist/ 下没有 BuaaSCP-*.apk>}" >&2
+  echo "未找到 APK：${APK:-<dist/ 下没有 TongCaiHang-*.apk>}" >&2
   echo "先构建：./gradlew :app:assembleRelease   （或 :app:assembleDebug）" >&2
   exit 1
 fi
@@ -83,6 +86,6 @@ cat <<'EOF'
 提示：
 - 首次启动可先点「网络自检」，确认设备到学校服务的链路正常；
 - 登录需要统一身份认证账号密码；若页面出现验证码，直接输入图片中的字符，点击图片可换一张；
-- 首页余额卡「去充值」与卡务页「校园卡充值」会打开学校官方充值页，支付由校方平台完成；
+- 首页「去充值」与卡务页「校园卡充值」会打开学校官方充值页，支付由校方平台完成；
 - 运行日志默认隐藏：设置 → 连点「版本」7 次。
 EOF

@@ -3,7 +3,10 @@ package cn.edu.buaa.scp.ui
 import android.content.Context
 import android.content.Intent
 import android.os.SystemClock
+import android.view.Gravity
+import android.widget.LinearLayout
 import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import cn.edu.buaa.scp.BuildConfig
 import cn.edu.buaa.scp.R
@@ -34,13 +37,46 @@ class SettingsFragment : ScpFragment() {
         val context = requireContext()
         val session = app.session
 
-        val account = Ui.addSection(body, "账号")
-        Ui.addKv(account, "学号 / 工号", Json.or(session?.studentId, "—"))
-        Ui.addKv(account, "openid", Json.or(Json.mask(session?.openid), "—"))
-
+        addProfile(context, session)
         addSessionSection(context, session)
         addActions(context)
         addAbout(context)
+    }
+
+    private fun addProfile(context: Context, session: SessionData?) {
+        val card = Ui.addCard(body)
+        val row = Ui.row(context)
+        row.addView(Ui.avatar(context, "通"))
+        val info = Ui.column(context)
+        info.addView(Ui.text(context, "校园卡账号", 16f, R.color.text_primary, bold = true))
+        info.addView(
+            Ui.text(
+                context,
+                if (session?.studentId.isNullOrBlank()) "未登录" else "学号 ${session?.studentId}",
+                12f,
+                R.color.text_hint,
+            ),
+            Ui.rowParams(context, 3f),
+        )
+        row.addView(
+            info,
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                marginStart = Ui.dp(context, 12f)
+            },
+        )
+        val active = session?.hasJsessionid == true
+        row.addView(
+            Ui.pill(
+                context,
+                if (active) "会话有效" else "需登录",
+                if (active) R.drawable.bg_pill_soft else R.drawable.bg_pill_gold_soft,
+                if (active) R.color.green else R.color.orange,
+            ).apply { gravity = Gravity.CENTER },
+        )
+        card.addView(row)
+
+        Ui.divider(card)
+        Ui.addKv(card, "openid", Json.or(Json.mask(session?.openid), "—"))
     }
 
     private fun addSessionSection(context: Context, session: SessionData?) {
@@ -63,10 +99,13 @@ class SettingsFragment : ScpFragment() {
 
     private fun addActions(context: Context) {
         val actions = Ui.addSection(body, "工具")
-        addAction(actions, "网络自检") { runSelfCheck() }
-        addAction(actions, "续期会话") { refreshSession() }
-        addAction(actions, "校园卡充值") { openRecharge() }
-        addAction(actions, "退出登录") {
+        Ui.actionRow(actions, R.drawable.ic_shield, "网络自检") { runSelfCheck() }
+        Ui.divider(actions, 50f)
+        Ui.actionRow(actions, R.drawable.ic_refresh, "续期会话") { refreshSession() }
+        Ui.divider(actions, 50f)
+        Ui.actionRow(actions, R.drawable.ic_recharge, "校园卡充值") { openRecharge() }
+        Ui.divider(actions, 50f)
+        Ui.actionRow(actions, R.drawable.ic_logout, "退出登录", danger = true) {
             (activity as? MainActivity)?.confirmLogout()
         }
     }
@@ -76,9 +115,13 @@ class SettingsFragment : ScpFragment() {
         val version = Ui.addKv(about, "版本", BuildConfig.VERSION_NAME)
         version.setOnClickListener { onVersionTap() }
         Ui.addKv(about, "数据来源", "m.icw.buaa.edu.cn")
+        Ui.divider(about, 50f)
+        Ui.actionRow(about, R.drawable.ic_refresh, "检查更新") {
+            (activity as? AppCompatActivity)?.let { UpdateUi.check(it, manual = true) }
+        }
         about.addView(
-            Ui.text(context, "非官方客户端，仅为本人账号提供查询入口。", 12f, R.color.text_hint),
-            Ui.rowParams(context, 6f),
+            Ui.text(context, "非官方客户端，仅用于本人账号。", 11.5f, R.color.text_hint),
+            Ui.rowParams(context, 12f),
         )
     }
 
@@ -92,12 +135,6 @@ class SettingsFragment : ScpFragment() {
             versionTaps = 0
             startActivity(Intent(requireContext(), LogActivity::class.java))
         }
-    }
-
-    private fun addAction(parent: android.widget.LinearLayout, title: String, action: () -> Unit) {
-        val button = Ui.lightButton(parent.context, title)
-        button.setOnClickListener { action() }
-        parent.addView(button, Ui.rowParams(parent.context, 6f))
     }
 
     private fun openRecharge() {

@@ -6,12 +6,14 @@ import android.os.Bundle
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
+import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
+import cn.edu.buaa.scp.BuildConfig
 import cn.edu.buaa.scp.R
 import cn.edu.buaa.scp.ScpApp
 import cn.edu.buaa.scp.databinding.ActivityLoginBinding
@@ -50,6 +52,7 @@ class LoginActivity : AppCompatActivity() {
         app = ScpApp.get(this)
 
         applyEdgeToEdgeInsets()
+        binding.tvVersion.text = "v${BuildConfig.VERSION_NAME}"
         binding.inputStudent.setText(app.store.rememberedStudentId())
 
         binding.btnLogin.setOnClickListener { startPasswordLogin() }
@@ -73,14 +76,40 @@ class LoginActivity : AppCompatActivity() {
             }
         }
 
+        if (BuildConfig.DEBUG) addDemoEntry()
         bootstrap()
+        UpdateUi.autoCheck(this)
+    }
+
+    /** Debug 构建专用：用离线示例数据预览主界面，不建立任何网络会话。 */
+    private fun addDemoEntry() {
+        val demo = Ui.lightButton(this, "界面预览（调试）").apply {
+            setOnClickListener {
+                app.enterDemoMode()
+                startActivity(Intent(this@LoginActivity, MainActivity::class.java))
+                finish()
+            }
+        }
+        (binding.btnSelfCheck.parent as? LinearLayout)?.addView(
+            demo,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply {
+                topMargin = Ui.dp(this@LoginActivity, 4f)
+                marginStart = Ui.dp(this@LoginActivity, 24f)
+                marginEnd = Ui.dp(this@LoginActivity, 24f)
+            },
+        )
     }
 
     /** 处理 Android 15 强制 edge-to-edge 的系统栏 insets（含软键盘）。 */
     private fun applyEdgeToEdgeInsets() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        WindowCompat.getInsetsController(window, window.decorView)
-            .isAppearanceLightStatusBars = true
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = true
+            isAppearanceLightNavigationBars = true
+        }
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { view, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val ime = insets.getInsets(WindowInsetsCompat.Type.ime())

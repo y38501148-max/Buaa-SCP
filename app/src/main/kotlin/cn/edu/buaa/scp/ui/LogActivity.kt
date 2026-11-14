@@ -30,12 +30,13 @@ class LogActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = true
+            isAppearanceLightNavigationBars = true
+        }
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            binding.toolbar.setPadding(
-                binding.toolbar.paddingLeft, bars.top,
-                binding.toolbar.paddingRight, binding.toolbar.paddingBottom,
-            )
+            Ui.applyToolbarTopInset(binding.toolbar, bars.top)
             insets
         }
         ViewCompat.requestApplyInsets(binding.root)

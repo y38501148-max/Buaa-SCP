@@ -1,22 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="buaa_blue">#0A4CB4</color>
-    <color name="buaa_blue_dark">#083A8C</color>
-    <color name="buaa_blue_soft">#2F6FE0</color>
-    <color name="buaa_blue_light">#E9F0FE</color>
+    <!-- 品牌色：深海军蓝 + 香槟金 -->
+    <color name="brand_navy">#0B1B36</color>
+    <color name="brand_navy_deep">#071227</color>
+    <color name="brand_blue">#14306B</color>
+    <color name="brand_blue_bright">#2A5BC7</color>
+    <color name="brand_blue_soft">#EEF3FB</color>
+    <color name="brand_gold">#C99A45</color>
+    <color name="brand_gold_deep">#A97C2A</color>
+    <color name="brand_gold_soft">#FBF3E2</color>
+    <color name="brand_teal">#0E8F7E</color>
+    <color name="brand_teal_soft">#E7F4F1</color>
+    <color name="brand_navy_soft">#EAF1FF</color>
+    <color name="brand_red_soft">#FBEDEA</color>
+    <color name="brand_green_soft">#E7F4EE</color>
+
+    <!-- 兼容旧命名，实际指向新品牌色 -->
+    <color name="buaa_blue">@color/brand_blue</color>
+    <color name="buaa_blue_dark">@color/brand_navy</color>
+    <color name="buaa_blue_soft">@color/brand_blue_bright</color>
+    <color name="buaa_blue_light">@color/brand_blue_soft</color>
 
     <color name="white">#FFFFFF</color>
     <color name="bg">#F4F6FA</color>
     <color name="surface">#FFFFFF</color>
+    <color name="surface_alt">#F8FAFD</color>
 
-    <color name="text_primary">#1B1F27</color>
-    <color name="text_secondary">#6B7280</color>
-    <color name="text_hint">#9AA3AF</color>
+    <color name="text_primary">#0B1220</color>
+    <color name="text_secondary">#5A6678</color>
+    <color name="text_hint">#93A0B4</color>
 
-    <color name="green">#16A34A</color>
-    <color name="red">#DC2626</color>
-    <color name="orange">#D97706</color>
-    <color name="divider">#E5E9F2</color>
+    <color name="green">#0E8A5F</color>
+    <color name="red">#C0392B</color>
+    <color name="orange">#B7791F</color>
+    <color name="divider">#E6EAF2</color>
+    <color name="nav_indicator">#EEF3FB</color>
+    <color name="gold_pill_text">#5C4310</color>
 
-    <color name="ic_launcher_background">#0A4CB4</color>
+    <color name="ic_launcher_background">#1D4ED8</color>
+    <color name="launcher_blue">#1D4ED8</color>
 </resources>

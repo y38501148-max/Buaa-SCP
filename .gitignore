@@ -15,7 +15,7 @@ keystore.properties
 *.keystore
 
 # 构建产物
-dist/*.apk
+dist/
 *.apk
 
 # 含个人数据的本地截图（不提交）

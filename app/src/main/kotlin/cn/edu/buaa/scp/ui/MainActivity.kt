@@ -58,14 +58,15 @@ class MainActivity : AppCompatActivity() {
      */
     private fun applyEdgeToEdgeInsets() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = true
+            isAppearanceLightNavigationBars = true
+        }
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, insets ->
             val bars = insets.getInsets(
                 WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
             )
-            binding.toolbar.setPadding(
-                binding.toolbar.paddingLeft, bars.top,
-                binding.toolbar.paddingRight, binding.toolbar.paddingBottom,
-            )
+            Ui.applyToolbarTopInset(binding.toolbar, bars.top)
             binding.bottomNav.setPadding(
                 binding.bottomNav.paddingLeft, binding.bottomNav.paddingTop,
                 binding.bottomNav.paddingRight, bars.bottom,
@@ -77,7 +78,12 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (!app.hasSession()) goLogin()
+        if (!app.hasSession()) {
+            goLogin()
+            return
+        }
+        if (app.consumeHomeRequest()) selectTab(0, syncBottomNav = true)
+        UpdateUi.autoCheck(this)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -157,7 +163,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         private fun titleOf(index: Int): String = when (index) {
-            0 -> "北航校园卡"
+            0 -> "通财航"
             1 -> "账单"
             2 -> "消费流水"
             3 -> "卡务"

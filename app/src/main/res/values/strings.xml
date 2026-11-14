@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">北航校园卡</string>
+    <string name="app_name">通财航</string>
+    <string name="app_subtitle">北航校园卡</string>
 
     <string name="nav_home">首页</string>
     <string name="nav_bills">账单</string>
@@ -8,19 +9,23 @@
     <string name="nav_card">卡务</string>
     <string name="nav_settings">设置</string>
 
-    <string name="login_title">统一身份认证登录</string>
+    <string name="login_title">统一身份认证</string>
+    <string name="login_subtitle">北航校园卡 · Android 客户端</string>
     <string name="login_student_hint">学号 / 工号</string>
     <string name="login_password_hint">统一身份认证密码</string>
     <string name="login_remember">记住学号</string>
-    <string name="login_button">登 录</string>
+    <string name="login_button">登录</string>
     <string name="login_self_check">网络自检</string>
     <string name="login_captcha_hint">验证码</string>
-    <string name="login_captcha_tip">看不清？点击图片换一张</string>
+    <string name="login_captcha_tip">点击图片换一张</string>
     <string name="login_captcha_loading">加载中…</string>
     <string name="login_captcha_refresh">刷新验证码</string>
+    <string name="login_status_default">使用统一身份认证账号登录</string>
+    <string name="login_brand_desc">通财航标志</string>
 
     <string name="action_logout">退出登录</string>
     <string name="action_refresh">刷新</string>
     <string name="action_clear">清空</string>
     <string name="action_copy">复制</string>
+    <string name="action_retry">重试</string>
 </resources>

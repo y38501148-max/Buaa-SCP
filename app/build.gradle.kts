@@ -16,8 +16,8 @@ android {
         applicationId = "cn.edu.buaa.scp"
         minSdk = 26
         targetSdk = 35
-        versionCode = 8
-        versionName = "0.3.0"
+        versionCode = 9
+        versionName = "0.4.0"
         resConfigs("zh", "en")
     }
 
