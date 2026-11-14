@@ -69,6 +69,13 @@ class ZfwApi(private val http: HttpEngine) {
         const val DESKTOP_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 
+        /**
+         * 航财通收银台按 UA 选择桌面/移动组件；移动 UA 下才会走 `payScene=wap`，
+         * 提供微信 H5 支付（直接拉起微信），而不是只能扫码的桌面二维码。
+         */
+        const val MOBILE_UA = "Mozilla/5.0 (Linux; Android 14; Pixel 8) " +
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36"
+
         private val REDIRECT_CODES = setOf(301, 302, 303, 307, 308)
     }
 }

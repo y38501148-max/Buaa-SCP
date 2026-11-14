@@ -145,3 +145,14 @@ GET https://www.cc-pay.cn/login?channel=BUAASSO
 - 部分账号的 `jsonmsg` 显示「暂未开通」，这是校方渠道状态，不是客户端问题；
 - WebView 的第三方 Cookie/支付 App 跳转行为受 ROM 与支付 App 版本影响；
 - 会话过期后 WebView 不会自动续期，需要返回 App 重新登录。
+
+## 8. 网费充值（v0.5.0）
+
+校园卡充值与网费充值是两条独立链路：
+
+- 校园卡充值：`m.icw.buaa.edu.cn/card` 官方充值页，注入 `JSESSIONID` + `CASTGC`；
+- 网费充值：`zfw.buaa.edu.cn/pay/card`，首次需用校园网账号单独登录；提交后返回的二维码
+  实际是航财通收银台 URL（`cashier.cc-pay.cn`），客户端会解析并自动打开收银台，
+  用微信 H5 / 支付宝手机网站支付拉起对应 App，不再需要保存图片扫码。
+
+完整流程、接口与实测边界见 [`NETWORK_FEE.md`](NETWORK_FEE.md)。

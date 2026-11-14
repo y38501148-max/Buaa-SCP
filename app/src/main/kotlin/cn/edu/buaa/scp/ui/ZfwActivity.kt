@@ -19,13 +19,17 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import cn.edu.buaa.scp.BuildConfig
 import cn.edu.buaa.scp.R
 import cn.edu.buaa.scp.ScpApp
 import cn.edu.buaa.scp.databinding.ActivityZfwBinding
+import cn.edu.buaa.scp.net.CasAuth
 import cn.edu.buaa.scp.net.ZfwApi
 import cn.edu.buaa.scp.net.ZfwHtml
+import cn.edu.buaa.scp.net.ZfwPay
 import cn.edu.buaa.scp.util.LogBus
 import org.json.JSONObject
+import java.net.URLEncoder
 
 /**
  * 校园网自助服务（zfw.buaa.edu.cn）WebView。
@@ -44,6 +48,12 @@ class ZfwActivity : AppCompatActivity() {
     private var payLoaded = false
     private var loginHintShown = false
     private var hadSessionAtStart = false
+
+    /** 二维码页 → 航财通收银台自动接管状态。 */
+    private var cashierOpening = false
+    private var cashierId = ""
+    private var statusCheckAttempts = 0
+    private var successHandled = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -77,6 +87,14 @@ class ZfwActivity : AppCompatActivity() {
 
         configureWebView()
         injectStoredCookies()
+        if (BuildConfig.DEBUG) {
+            val debugCashier = intent.getStringExtra(EXTRA_DEBUG_CASHIER)
+            if (!debugCashier.isNullOrEmpty()) {
+                binding.toolbar.title = "网费充值"
+                openCashier(debugCashier)
+                return
+            }
+        }
         openInitialPage()
     }
 
@@ -85,11 +103,16 @@ class ZfwActivity : AppCompatActivity() {
         binding.webView.visibility = View.VISIBLE
         binding.progress.visibility = View.VISIBLE
         hideHint()
+        binding.webView.settings.userAgentString = ZfwApi.DESKTOP_UA
         binding.webView.loadUrl(if (recharge) ZfwApi.PAY_URL else ZfwApi.HOME_URL)
     }
 
     private fun reload() {
         payLoaded = false
+        cashierOpening = false
+        cashierId = ""
+        successHandled = false
+        statusCheckAttempts = 0
         openInitialPage()
     }
 
@@ -121,6 +144,11 @@ class ZfwActivity : AppCompatActivity() {
             }
         }
         binding.webView.webViewClient = object : WebViewClient() {
+            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                super.onPageStarted(view, url, favicon)
+                applyUserAgent(url)
+            }
+
             override fun shouldOverrideUrlLoading(
                 view: WebView?,
                 request: WebResourceRequest?,
@@ -176,15 +204,39 @@ class ZfwActivity : AppCompatActivity() {
             showLoginHint()
             return
         }
-        hideHint()
-        captureCookies()
-        val name = state?.optString("name").orEmpty()
-        val username = state?.optString("username").orEmpty()
-        if (name.isNotEmpty() || username.isNotEmpty()) {
-            app.updateZfwProfile(username, name)
+
+        // 支付完成页 / 收银台 socket 已跳转成功页
+        if (recharge && state?.optBoolean("success") == true) {
+            onRechargeSuccess()
+            return
+        }
+
+        val host = runCatching { Uri.parse(url.orEmpty()).host.orEmpty() }.getOrDefault("")
+        if (host.endsWith("zfw.buaa.edu.cn")) {
+            hideHint()
+            captureCookies()
+            val name = state?.optString("name").orEmpty()
+            val username = state?.optString("username").orEmpty()
+            if (name.isNotEmpty() || username.isNotEmpty()) {
+                app.updateZfwProfile(username, name)
+            }
+        }
+
+        // 充值二维码页：提取二维码里的航财通收银台 URL，自动接管，免保存图片去微信扫。
+        val qrSrc = state?.optString("qr").orEmpty()
+        val cashierUrl = ZfwPay.cashierUrlFromQrSrc(qrSrc)
+        if (recharge && cashierUrl != null && !cashierOpening) {
+            openCashier(cashierUrl)
+            return
         }
 
         val path = url.orEmpty()
+        if (cashierOpening && host.endsWith("cashier.cc-pay.cn")) {
+            binding.tvHint.visibility = View.GONE
+            scheduleStatusCheck()
+            return
+        }
+
         if (recharge && !payLoaded && !path.contains("/pay/card")) {
             payLoaded = true
             binding.webView.loadUrl(ZfwApi.PAY_URL)
@@ -197,6 +249,95 @@ class ZfwActivity : AppCompatActivity() {
             finish()
         } else {
             app.requestHomeRefresh()
+        }
+    }
+
+    /**
+     * 二维码 = 航财通收银台地址时，自动完成统一认证并打开收银台。
+     *
+     * 收银台在移动 UA 下会提供微信 H5 / 支付宝手机网站支付，点击后直接拉起对应 App，
+     * 不再需要保存二维码图片去微信扫一扫。
+     */
+    private fun openCashier(cashierUrl: String) {
+        if (!cashierUrl.startsWith("https://cashier.cc-pay.cn/")) {
+            LogBus.warn("二维码内容不是航财通收银台，保留二维码页面作为兜底")
+            return
+        }
+        val castgc = app.session?.castgc.orEmpty()
+        if (castgc.isEmpty()) {
+            Toast.makeText(this, "登录态不足，请在二维码页面手动完成支付", Toast.LENGTH_LONG).show()
+            return
+        }
+        cashierOpening = true
+        successHandled = false
+        statusCheckAttempts = 0
+        cashierId = ZfwPay.cashierId(cashierUrl)
+
+        val manager = CookieManager.getInstance()
+        if (castgc.none { it == ';' || it == '\n' || it == '\r' }) {
+            manager.setCookie(
+                "https://${CasAuth.SSO_HOST}",
+                "CASTGC=$castgc; path=/; Secure; HttpOnly",
+            )
+        }
+        manager.flush()
+
+        binding.webView.settings.userAgentString = ZfwApi.MOBILE_UA
+        binding.tvHint.visibility = View.VISIBLE
+        binding.tvHint.text = "正在打开航财通收银台…"
+        val login = "https://pass.cc-pay.cn/login?backUrl=" +
+                URLEncoder.encode(cashierUrl, "UTF-8") + "&channel=BUAASSO"
+        LogBus.step("网费充值：二维码已解析，自动打开航财通收银台")
+        binding.webView.loadUrl(login)
+    }
+
+    /** 轮询收银台订单状态，支付成功后回到首页并刷新。 */
+    private fun scheduleStatusCheck() {
+        if (!cashierOpening || successHandled || statusCheckAttempts >= 30) return
+        statusCheckAttempts++
+        binding.webView.postDelayed({
+            if (successHandled || isFinishing || cashierId.isEmpty()) return@postDelayed
+            val script = "(function(){try{var x=new XMLHttpRequest();" +
+                    "x.open('GET','/transaction?id=$cashierId',false);x.send(null);" +
+                    "var j=JSON.parse(x.responseText);var d=j.data||{};" +
+                    "return JSON.stringify({status:d.status||'',paid:!!d.tsPay});" +
+                    "}catch(e){return '{}'}})()"
+            binding.webView.evaluateJavascript(script) { value ->
+                if (successHandled || isFinishing) return@evaluateJavascript
+                val result = runCatching {
+                    JSONObject((value ?: "").trim().trim('"').replace("\\\"", "\""))
+                }.getOrNull()
+                val status = result?.optString("status").orEmpty()
+                val paid = result?.optBoolean("paid") == true || status == "success"
+                if (paid) {
+                    onRechargeSuccess()
+                } else if (status == "closed") {
+                    binding.tvHint.visibility = View.VISIBLE
+                    binding.tvHint.text = "订单已关闭，可点击右上角刷新重新发起充值"
+                } else {
+                    scheduleStatusCheck()
+                }
+            }
+        }, 2000)
+    }
+
+    private fun onRechargeSuccess() {
+        if (successHandled) return
+        successHandled = true
+        app.requestHome()
+        Toast.makeText(this, "网费充值完成", Toast.LENGTH_SHORT).show()
+        binding.webView.postDelayed({ if (!isFinishing) finish() }, 900)
+    }
+
+    private fun applyUserAgent(url: String?) {
+        val host = runCatching { Uri.parse(url.orEmpty()).host.orEmpty() }.getOrDefault("")
+        val target = when {
+            host.endsWith("cashier.cc-pay.cn") || host.endsWith("pass.cc-pay.cn") ||
+                host.endsWith("tenpay.com") || host.endsWith("alipay.com") -> ZfwApi.MOBILE_UA
+            else -> ZfwApi.DESKTOP_UA
+        }
+        if (binding.webView.settings.userAgentString != target) {
+            binding.webView.settings.userAgentString = target
         }
     }
 
@@ -257,6 +398,20 @@ class ZfwActivity : AppCompatActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // 从微信/支付宝返回后，回到收银台再查一次订单状态（收银台 socket 之外的双保险）。
+        if (cashierOpening && !successHandled && cashierId.isNotEmpty()) {
+            val current = binding.webView.url.orEmpty()
+            if (current.contains("cashier.cc-pay.cn/cashier")) {
+                statusCheckAttempts = 0
+                scheduleStatusCheck()
+            } else if (!current.startsWith("weixin://") && !current.startsWith("alipays://")) {
+                binding.webView.loadUrl("https://cashier.cc-pay.cn/cashier?id=$cashierId")
+            }
+        }
+    }
+
     override fun onDestroy() {
         binding.webView.stopLoading()
         binding.webView.loadUrl("about:blank")
@@ -282,6 +437,9 @@ class ZfwActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_RECHARGE = "recharge"
+
+        /** 仅 debug：`adb shell am start ... -e debug_cashier <url>` 直接验证收银台接管。 */
+        const val EXTRA_DEBUG_CASHIER = "debug_cashier"
         private const val ORIGIN = "https://zfw.buaa.edu.cn"
 
         /** 去掉表单的 target=_blank，避免 WebView 无法打开新窗口。 */
@@ -289,14 +447,18 @@ class ZfwActivity : AppCompatActivity() {
             "(function(){try{document.querySelectorAll('form[target]').forEach(function(f){f.removeAttribute('target')});" +
                 "document.querySelectorAll('a[target=_blank]').forEach(function(a){a.removeAttribute('target')});}catch(e){}})()"
 
-        /** 一次性返回登录状态与页面上的账号/姓名，省去多次跨进程调用。 */
+        /** 一次性返回登录状态、账号/姓名、充值二维码与支付完成状态。 */
         private const val LOGIN_STATE_SCRIPT =
             "(function(){try{var login=!!document.getElementById('login-form');" +
                 "var text=(document.body&&document.body.innerText)||'';" +
                 "var um=text.match(/用户名\\s*[:：]?\\s*([0-9A-Za-z]+)/);" +
                 "var nameEl=document.querySelector('.user-panel .info p');" +
                 "var name=nameEl&&nameEl.innerText?nameEl.innerText.trim():'';" +
-                "return JSON.stringify({login:login,username:um?um[1]:'',name:name});" +
-                "}catch(e){return JSON.stringify({login:false,username:'',name:''})}})()"
+                "var img=document.querySelector('img[src*=\"/pay/qrcode?url=\"]');" +
+
+                "var qr=img?img.getAttribute('src'):'';" +
+                "var success=/支付成功|充值成功|付款成功|交易成功/.test(text)||location.href.indexOf('transaction_result')>=0;" +
+                "return JSON.stringify({login:login,username:um?um[1]:'',name:name,qr:qr,success:success});" +
+                "}catch(e){return JSON.stringify({login:false,username:'',name:'',qr:'',success:false})}})()"
     }
 }

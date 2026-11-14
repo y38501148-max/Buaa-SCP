@@ -165,7 +165,7 @@ class SettingsFragment : ScpFragment() {
         val about = Ui.addSection(body, "关于")
         val version = Ui.addKv(about, "版本", BuildConfig.VERSION_NAME)
         version.setOnClickListener { onVersionTap() }
-        Ui.addKv(about, "数据来源", "m.icw.buaa.edu.cn")
+        Ui.addKv(about, "数据来源", "m.icw / zfw / it.buaa.edu.cn")
         Ui.divider(about, 50f)
         Ui.actionRow(about, R.drawable.ic_refresh, "检查更新") {
             (activity as? AppCompatActivity)?.let { UpdateUi.check(it, manual = true) }
