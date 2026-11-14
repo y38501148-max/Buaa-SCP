@@ -54,11 +54,13 @@
 
         <activity
             android:name=".ui.CardOpActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
 
         <activity
             android:name=".ui.ZfwActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden"
             android:exported="false" />
     </application>
 </manifest>

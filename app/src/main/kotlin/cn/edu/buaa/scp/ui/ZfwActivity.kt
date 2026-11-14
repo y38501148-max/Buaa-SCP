@@ -238,7 +238,7 @@ class ZfwActivity : AppCompatActivity() {
             return
         }
 
-        if (recharge && !payLoaded && !path.contains("/pay/card")) {
+        if (recharge && !payLoaded && !cashierOpening && !path.contains("/pay/card")) {
             payLoaded = true
             binding.webView.loadUrl(ZfwApi.PAY_URL)
             return
@@ -270,6 +270,7 @@ class ZfwActivity : AppCompatActivity() {
             return
         }
         cashierOpening = true
+        payLoaded = true
         successHandled = false
         statusCheckAttempts = 0
         cashierId = ZfwPay.cashierId(cashierUrl)
@@ -302,7 +303,7 @@ class ZfwActivity : AppCompatActivity() {
             val script = "(function(){try{var x=new XMLHttpRequest();" +
                     "x.open('GET','/transaction?id=$cashierId',false);x.send(null);" +
                     "var j=JSON.parse(x.responseText);var d=j.data||{};" +
-                    "return JSON.stringify({status:d.status||'',paid:!!d.tsPay});" +
+                    "return JSON.stringify({status:d.status||''});" +
                     "}catch(e){return '{}'}})()"
             binding.webView.evaluateJavascript(script) { value ->
                 if (successHandled || isFinishing) return@evaluateJavascript
@@ -310,8 +311,7 @@ class ZfwActivity : AppCompatActivity() {
                     JSONObject((value ?: "").trim().trim('"').replace("\\\"", "\""))
                 }.getOrNull()
                 val status = result?.optString("status").orEmpty()
-                val paid = result?.optBoolean("paid") == true || status == "success"
-                if (paid) {
+                if (status == "success") {
                     onRechargeSuccess()
                 } else if (status == "closed") {
                     binding.tvHint.visibility = View.VISIBLE
@@ -332,6 +332,14 @@ class ZfwActivity : AppCompatActivity() {
     }
 
     private fun applyUserAgent(url: String?) {
+        // 收银台 SSO 链路会跨 sso / pass / cashier / tenpay 多个域，
+        // 一旦进入自动接管就保持移动 UA，避免中途回退桌面 UA 导致收银台退回扫码模式。
+        if (cashierOpening) {
+            if (binding.webView.settings.userAgentString != ZfwApi.MOBILE_UA) {
+                binding.webView.settings.userAgentString = ZfwApi.MOBILE_UA
+            }
+            return
+        }
         val host = runCatching { Uri.parse(url.orEmpty()).host.orEmpty() }.getOrDefault("")
         val target = when {
             host.endsWith("cashier.cc-pay.cn") || host.endsWith("pass.cc-pay.cn") ||
@@ -468,7 +476,7 @@ class ZfwActivity : AppCompatActivity() {
                 "var img=document.querySelector('img[src*=\"/pay/qrcode?url=\"]');" +
 
                 "var qr=img?img.getAttribute('src'):'';" +
-                "var success=/支付成功|充值成功|付款成功|交易成功/.test(text)||location.href.indexOf('transaction_result')>=0;" +
+                "var success=location.href.indexOf('transaction_result')>=0;" +
                 "return JSON.stringify({login:login,username:um?um[1]:'',name:name,qr:qr,success:success});" +
                 "}catch(e){return JSON.stringify({login:false,username:'',name:'',qr:'',success:false})}})()"
     }

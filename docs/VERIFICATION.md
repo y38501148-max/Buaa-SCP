@@ -95,3 +95,10 @@
 ./gradlew :app:assembleRelease
 ./install.sh
 ```
+
+## 8. 独立复核（QA）
+
+- 独立 QA 报告：`work/scp-050-recon/qa/QA_REPORT.md`；
+- 3 个 P1 已修复：收银台兜底回退、收银台 UA 时序、支付成功判定；
+- 修复记录：`work/scp-050-recon/qa/FIXES.md`；
+- 修复后重新运行 86 个单元测试与 release 构建，均通过。

@@ -31,7 +31,11 @@ class ZfwApi(private val http: HttpEngine) {
         }
         val home = ZfwHtml.parseHome(response.body)
         if (home == null) {
-            throw ApiException("校园网登录已失效，请重新登录", authExpired = true)
+            // 只有明确落到登录页才判定会话失效；维护页/改版页不应清掉本地会话。
+            if (ZfwHtml.isLoginPage(response.body)) {
+                throw ApiException("校园网登录已失效，请重新登录", authExpired = true)
+            }
+            throw ApiException("网费页面解析失败，请稍后重试")
         }
         LogBus.step("网费数据已更新（在线 ${home.onlineCount} 台设备）")
         home
