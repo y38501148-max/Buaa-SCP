@@ -76,10 +76,11 @@ class HttpEngine(val jar: CookieJar = CookieJar()) {
         url: String,
         extraHeaders: Map<String, String>? = null,
         body: String? = null,
+        sensitive: Boolean = false,
     ): Response {
         val raw = execute(method, url, extraHeaders, body)
         val text = String(raw.bytes, charsetOf(headerOf(raw.headers, "Content-Type")))
-        if (raw.status == 200 && method == "POST") {
+        if (!sensitive && raw.status == 200 && method == "POST") {
             DebugDump.maybeDump("post_" + url.substringAfterLast('/').substringBefore('?'), text)
         }
         log(method, url, raw, text.length)

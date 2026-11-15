@@ -66,6 +66,7 @@ abstract class ScpFragment : Fragment() {
     }
 
     override fun onDestroyView() {
+        loadedOnce = false
         job?.cancel()
         job = null
         binding = null

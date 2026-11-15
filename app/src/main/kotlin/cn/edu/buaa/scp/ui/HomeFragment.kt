@@ -2,13 +2,12 @@ package cn.edu.buaa.scp.ui
 
 import android.content.Context
 import android.content.Intent
+import android.os.Bundle
+import android.view.LayoutInflater
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
-import android.widget.FrameLayout
 import android.widget.LinearLayout
-import android.widget.TextView
-import androidx.core.content.ContextCompat
 import cn.edu.buaa.scp.R
 import cn.edu.buaa.scp.ScpApp
 import cn.edu.buaa.scp.model.HomeModel
@@ -22,12 +21,19 @@ import com.google.android.material.card.MaterialCardView
 
 /**
  * 首页：
- * 1. 校园卡显示（余额 / 状态）
- * 2. 网费显示（校园网流量 / 充值入口）
- * 3. 快捷入口（账单 / 财务 / 充值 / 其他）
- * 4. 账户信息
+ * 1. 支付二维码（默认显示，自动 / 手动刷新）
+ * 2. 网费
+ * 3. 快捷入口与账户信息
  */
 class HomeFragment : ScpFragment() {
+    private var paymentPanel: PaymentCodePanel? = null
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+        val root = super.onCreateView(inflater, container, savedInstanceState)
+        clearBody()
+        paymentPanel = PaymentCodePanel(this, app) { refresh() }.also { body.addView(it.view) }
+        return root
+    }
 
     override suspend fun load() {
         if (app.demoMode) {
@@ -87,7 +93,10 @@ class HomeFragment : ScpFragment() {
         clearBody()
         val context = requireContext()
 
-        addBalanceCard(context, model)
+        paymentPanel?.let {
+            it.updateBalance(model)
+            body.addView(it.view)
+        }
         addNetworkCard(context, network)
         addQuickActions(context)
         addAccountSection(context, model)
@@ -103,121 +112,26 @@ class HomeFragment : ScpFragment() {
 
     override fun onResume() {
         super.onResume()
+        if (!isHidden) paymentPanel?.start()
         if (isAdded && view != null && app.consumeHomeRefresh()) {
             refresh()
         }
     }
 
-    // ---------------- 校园卡显示 ----------------
+    override fun onPause() {
+        paymentPanel?.stop()
+        super.onPause()
+    }
 
-    private fun addBalanceCard(context: Context, model: HomeModel) {
-        val hero = FrameLayout(context).apply {
-            setBackgroundResource(R.drawable.bg_hero)
-            clipToOutline = true
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply { bottomMargin = Ui.dp(context, 14f) }
-        }
+    override fun onHiddenChanged(hidden: Boolean) {
+        super.onHiddenChanged(hidden)
+        if (hidden) paymentPanel?.stop() else if (isResumed) paymentPanel?.start()
+    }
 
-        // 背景装饰：右上角冷光、左下角香槟光。
-        hero.addView(
-            View(context).apply { setBackgroundResource(R.drawable.bg_hero_glow) },
-            FrameLayout.LayoutParams(Ui.dp(context, 190f), Ui.dp(context, 190f)).apply {
-                gravity = Gravity.TOP or Gravity.END
-                topMargin = -Ui.dp(context, 76f)
-                marginEnd = -Ui.dp(context, 58f)
-            },
-        )
-
-        val content = Ui.column(context).apply {
-            setPadding(Ui.dp(context, 20f), Ui.dp(context, 18f), Ui.dp(context, 20f), Ui.dp(context, 18f))
-        }
-        hero.addView(
-            content,
-            FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-            ),
-        )
-
-        val top = Ui.row(context)
-        top.addView(
-            Ui.text(context, "校园卡余额", 12.5f, R.color.white, letterSpacing = 0.04f).apply {
-                setTextColor(0xCCFFFFFF.toInt())
-            },
-            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
-        )
-        val recharge = Ui.text(context, "去充值", 12.5f, R.color.gold_pill_text, bold = true).apply {
-            gravity = Gravity.CENTER
-            setPadding(Ui.dp(context, 14f), Ui.dp(context, 7f), Ui.dp(context, 14f), Ui.dp(context, 7f))
-            setBackgroundResource(R.drawable.bg_pill_gold)
-            isClickable = true
-            isFocusable = true
-            foreground = Ui.selectableForeground(context)
-            setOnClickListener {
-                startActivity(Intent(requireContext(), RechargeActivity::class.java))
-            }
-        }
-        top.addView(recharge)
-        content.addView(top)
-
-        val amountRow = Ui.row(context)
-        amountRow.addView(
-            Ui.text(context, "¥", 22f, R.color.white, bold = true).apply {
-                setTextColor(0xE6FFFFFF.toInt())
-                setPadding(0, Ui.dp(context, 8f), Ui.dp(context, 5f), 0)
-            },
-        )
-        amountRow.addView(
-            Ui.text(
-                context,
-                if (model.balance.isEmpty()) "--" else model.balance,
-                38f,
-                R.color.white,
-                bold = true,
-                letterSpacing = -0.02f,
-            ),
-        )
-        content.addView(amountRow, Ui.rowParams(context, 2f))
-
-        val status = Ui.row(context)
-        status.addView(Ui.statusDot(context, model.statusNormal))
-        status.addView(
-            Ui.text(
-                context,
-                Json.or(model.status, "状态未知"),
-                12.5f,
-                R.color.white,
-            ).apply { setTextColor(0xE0FFFFFF.toInt()) },
-        )
-        content.addView(status, Ui.rowParams(context, 10f))
-
-        content.addView(
-            View(context).apply { setBackgroundColor(0x1FFFFFFF) },
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                Ui.dp(context, 1f),
-            ).apply { topMargin = Ui.dp(context, 14f) },
-        )
-
-        val bottom = Ui.row(context)
-        val time = Json.time(model.updatedAt)
-        bottom.addView(
-            Ui.text(
-                context,
-                if (time.isEmpty()) "刚刚更新" else "更新于 $time",
-                10.5f,
-                R.color.white,
-            ).apply { setTextColor(0x8FFFFFFF.toInt()) },
-            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
-        )
-        bottom.addView(
-            Ui.text(context, "通财航", 10f, R.color.brand_gold, bold = true, letterSpacing = 0.18f),
-        )
-        content.addView(bottom, Ui.rowParams(context, 10f))
-
-        body.addView(hero)
+    override fun onDestroyView() {
+        paymentPanel?.stop()
+        paymentPanel = null
+        super.onDestroyView()
     }
 
     // ---------------- 网费显示 ----------------

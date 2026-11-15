@@ -34,6 +34,7 @@ class ScpApp : Application() {
     val http: HttpEngine by lazy { HttpEngine(jar) }
     val cas: CasAuth by lazy { CasAuth(http) }
     val api: CardApi by lazy { CardApi(http) }
+    val paymentApi: cn.edu.buaa.scp.net.CardPaymentApi by lazy { cn.edu.buaa.scp.net.CardPaymentApi(http) }
     val portalApi: PortalApi by lazy { PortalApi(http) }
 
     /** 财务系统（chaxun.icw.buaa.edu.cn）收入查询，复用统一认证 Cookie。 */
