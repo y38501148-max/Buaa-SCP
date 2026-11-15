@@ -151,8 +151,11 @@ class CasAuth(private val http: HttpEngine) {
         val explicitError = Html.errorMessage(post.body)
         val message = when {
             post.status == 423 -> "登录尝试过多，账号已被临时锁定，请稍后再试"
-            post.status == 401 || post.status == 403 -> explicitError
-                ?: "学号或密码错误（HTTP ${post.status}）"
+            post.status == 401 -> explicitError
+                ?: "学号或密码错误（HTTP 401）"
+            // 403 通常是 WAF / 权限拦截，不等于密码错误；不要据此删除保存的密码。
+            post.status == 403 -> explicitError
+                ?: "统一身份认证拒绝了请求（HTTP 403），请稍后再试"
             post.status >= 500 -> "统一身份认证服务异常（HTTP ${post.status}），请稍后再试"
             explicitError != null -> explicitError
             next?.hasCaptcha == true -> "验证码错误，请重新输入"

@@ -100,7 +100,7 @@ class SettingsFragment : ScpFragment() {
     }
 
 
-    /** 校园网会话：与统一身份认证独立，首次使用需在 WebView 里单独登录。 */
+    /** 校园网会话：与统一身份认证独立，首次使用需在原生登录页单独登录。 */
     private fun addZfwSection(context: Context) {
         val zfw = app.zfwSession
         val card = Ui.addSection(body, "校园网")
@@ -138,7 +138,13 @@ class SettingsFragment : ScpFragment() {
             Ui.actionRow(card, R.drawable.ic_logout, "退出校园网", danger = true) {
                 MaterialAlertDialogBuilder(requireContext())
                     .setTitle("退出校园网")
-                    .setMessage("清除本机保存的校园网会话，下次查看网费需重新登录。")
+                    .setMessage(
+                        if (app.store.zfwAutoLogin() && app.store.loadZfwPassword() != null) {
+                            "清除本机保存的校园网会话；已开启自动登录，下次打开网费会自动重新登录。"
+                        } else {
+                            "清除本机保存的校园网会话，下次查看网费需重新登录。"
+                        },
+                    )
                     .setNegativeButton("取消", null)
                     .setPositiveButton("退出") { _, _ ->
                         app.clearZfwSession()

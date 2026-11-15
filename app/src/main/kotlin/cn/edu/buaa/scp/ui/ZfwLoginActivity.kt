@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
@@ -16,6 +17,7 @@ import cn.edu.buaa.scp.ScpApp
 import cn.edu.buaa.scp.databinding.ActivityZfwLoginBinding
 import cn.edu.buaa.scp.net.SelfCheck
 import cn.edu.buaa.scp.net.ZfwAuth
+import cn.edu.buaa.scp.store.LoginPolicy
 import cn.edu.buaa.scp.util.LogBus
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.CancellationException
@@ -28,8 +30,9 @@ import kotlinx.coroutines.withContext
  * 校园网原生登录页。
  *
  * 与「统一身份认证」登录独立：使用校园网账号/密码，密码经官方登录页随机 RSA 公钥加密后
- * 只提交给 zfw；客户端不保存密码。若需要图形验证码或短信验证码，会在本页展开对应输入框。
- * 异常/风控场景可一键回退到学校官方网页登录。
+ * 只提交给 zfw。默认不保存密码；用户显式开启「记住密码」后，密码经系统密钥库加密保存，
+ * 「自动登录」会在打开本页时自动提交一次。图形/短信验证码等必须由用户完成的步骤会
+ * 自动降级为手动输入。
  */
 class ZfwLoginActivity : AppCompatActivity() {
 
@@ -42,6 +45,9 @@ class ZfwLoginActivity : AppCompatActivity() {
     private var recharge = false
     private var captchaJob: Job? = null
 
+    /** 每次进入本页最多自动尝试一次，失败后交给用户手动完成。 */
+    private var autoLoginAttempted = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityZfwLoginBinding.inflate(layoutInflater)
@@ -51,7 +57,13 @@ class ZfwLoginActivity : AppCompatActivity() {
 
         applyEdgeToEdgeInsets()
         binding.toolbar.setNavigationOnClickListener { finish() }
-        binding.inputUsername.setText(app.store.rememberedZfwUsername())
+        // 校园网账号默认记住；老会话里已有账号时回填。
+        binding.inputUsername.setText(
+            app.store.rememberedZfwUsername().ifBlank { app.zfwSession?.username.orEmpty() },
+        )
+        setupCredentialOptions()
+        // 旋转/重建时不要重复自动提交密码。
+        autoLoginAttempted = savedInstanceState?.getBoolean(KEY_AUTO_ATTEMPTED, false) ?: false
         binding.btnLogin.setOnClickListener { submit() }
         binding.captchaImageBox.setOnClickListener { loadCaptcha() }
         binding.btnWebLogin.setOnClickListener { openWebLogin() }
@@ -84,6 +96,34 @@ class ZfwLoginActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * 「记住密码 / 自动登录」：账号总是记住，密码与自动登录由用户显式开启。
+     * 自动登录依赖记住密码；关闭记住密码会立即清除已保存的密码并关闭自动登录。
+     */
+    private fun setupCredentialOptions() {
+        val remember = app.store.zfwRememberPassword()
+        binding.checkRememberPassword.isChecked = remember
+        binding.checkAutoLogin.isChecked = app.store.zfwAutoLogin() && remember
+        if (remember) {
+            app.store.loadZfwPassword()?.takeIf { it.isNotEmpty() }?.let {
+                binding.inputPassword.setText(it)
+            }
+        }
+
+        binding.checkRememberPassword.setOnCheckedChangeListener { _, checked ->
+            app.store.setZfwRememberPassword(checked)
+            if (!checked && binding.checkAutoLogin.isChecked) {
+                binding.checkAutoLogin.isChecked = false
+            }
+        }
+        binding.checkAutoLogin.setOnCheckedChangeListener { _, checked ->
+            if (checked && !binding.checkRememberPassword.isChecked) {
+                binding.checkRememberPassword.isChecked = true
+            }
+            app.store.setZfwAutoLogin(checked)
+        }
+    }
+
     private fun loadPage() {
         setBusy(true, "正在加载登录页…")
         lifecycleScope.launch {
@@ -101,6 +141,7 @@ class ZfwLoginActivity : AppCompatActivity() {
                 }
                 page = loaded
                 setBusy(false, "请输入校园网账号与密码")
+                maybeAutoLogin()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -110,7 +151,31 @@ class ZfwLoginActivity : AppCompatActivity() {
         }
     }
 
-    private fun submit() {
+    /** 登录页就绪后，若已开启自动登录则直接提交一次保存的账号密码。 */
+    private fun maybeAutoLogin() {
+        if (autoLoginAttempted) return
+        val username = binding.inputUsername.text?.toString()?.trim().orEmpty()
+        val password = app.store.loadZfwPassword().orEmpty()
+        // 用户在登录页加载失败后手工输入了新密码：不要用保存的旧密码覆盖并提交。
+        val typedPassword = binding.inputPassword.text?.toString().orEmpty()
+        if (typedPassword.isNotEmpty() && typedPassword != password) return
+        val remembered = app.store.rememberedZfwUsername()
+        if (remembered.isNotBlank() && username != remembered) return
+        if (!LoginPolicy.canAutoLogin(
+                app.store.zfwRememberPassword(),
+                app.store.zfwAutoLogin(),
+                username,
+                password,
+            )
+        ) {
+            return
+        }
+        autoLoginAttempted = true
+        binding.inputPassword.setText(password)
+        submit(auto = true)
+    }
+
+    private fun submit(auto: Boolean = false) {
         if (busy) return
         val loginPage = page
         if (loginPage == null) {
@@ -144,7 +209,14 @@ class ZfwLoginActivity : AppCompatActivity() {
             return
         }
 
-        setBusy(true, if (smsStage) "正在校验短信验证码…" else "正在登录校园网…")
+        setBusy(
+            true,
+            when {
+                auto -> "正在自动登录校园网…"
+                smsStage -> "正在校验短信验证码…"
+                else -> "正在登录校园网…"
+            },
+        )
         lifecycleScope.launch {
             try {
                 if (smsStage) {
@@ -153,7 +225,7 @@ class ZfwLoginActivity : AppCompatActivity() {
                         setBusy(false, "短信验证码错误，请重新输入")
                         return@launch
                     }
-                    finishLogin(loginPage, username, password, captcha, sms)
+                    finishLogin(loginPage, username, password, captcha, sms, auto)
                     return@launch
                 }
 
@@ -161,10 +233,15 @@ class ZfwLoginActivity : AppCompatActivity() {
                 if (!result.success) {
                     if (result.captchaRequired) {
                         showCaptcha()
-                        setBusy(false, "请输入图形验证码")
+                        setBusy(
+                            false,
+                            if (auto) "自动登录需要图形验证码，请输入后继续" else "请输入图形验证码",
+                        )
                         loadCaptcha()
+                        if (auto) disableAutoLogin()
                     } else {
                         setBusy(false, result.message.ifBlank { "账号或密码错误" })
+                        if (auto) onAutoLoginRejected(result.message)
                     }
                     return@launch
                 }
@@ -178,16 +255,56 @@ class ZfwLoginActivity : AppCompatActivity() {
                             "短信验证码已发送，请填写后再次点击登录"
                         },
                     )
+                    if (auto) {
+                        disableAutoLogin()
+                        binding.tvStatus.text = "已发送短信验证码，请填写后继续登录"
+                        binding.inputSms.requestFocus()
+                    }
                     return@launch
                 }
-                finishLogin(loginPage, username, password, captcha, "")
+                finishLogin(loginPage, username, password, captcha, "", auto)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 setBusy(false, "登录失败：${SelfCheck.describe(e)}")
+                if (auto) {
+                    // 自动提交阶段的服务端异常（CSRF 过期、风控、首页接口故障等）
+                    // 也视为本次自动登录失败，避免下次打开再次提交。
+                    disableAutoLogin()
+                    Toast.makeText(
+                        this@ZfwLoginActivity,
+                        "自动登录未完成，已关闭自动登录，请手动登录",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
                 LogBus.warn("校园网原生登录失败：${SelfCheck.describe(e)}")
             }
         }
+    }
+
+    /**
+     * 自动登录失败：关闭自动登录，避免每次打开都重复提交。
+     * 服务端明确判定密码错误时清除保存的密码；验证码/短信场景保留密码。
+     */
+    private fun onAutoLoginRejected(message: String) {
+        val interaction = LoginPolicy.requiresInteraction(message)
+        val rejected = LoginPolicy.shouldForgetPassword(message, interaction)
+        disableAutoLogin()
+        if (rejected) {
+            app.store.setZfwRememberPassword(false)
+            binding.checkRememberPassword.isChecked = false
+            binding.inputPassword.text?.clear()
+            binding.tvStatus.text =
+                "自动登录失败：${message.ifBlank { "账号或密码错误" }}，已清除保存的密码，请手动登录"
+        } else {
+            binding.tvStatus.text = "自动登录失败：${message.ifBlank { "请手动登录" }}"
+        }
+        Toast.makeText(this, binding.tvStatus.text, Toast.LENGTH_LONG).show()
+    }
+
+    private fun disableAutoLogin() {
+        app.store.setZfwAutoLogin(false)
+        if (binding.checkAutoLogin.isChecked) binding.checkAutoLogin.isChecked = false
     }
 
     private suspend fun finishLogin(
@@ -196,6 +313,7 @@ class ZfwLoginActivity : AppCompatActivity() {
         password: String,
         captcha: String,
         sms: String,
+        auto: Boolean,
     ) {
         app.zfwAuth.submitLogin(loginPage, username, password, captcha, sms)
         app.store.setRememberedZfwUsername(username)
@@ -205,17 +323,27 @@ class ZfwLoginActivity : AppCompatActivity() {
             throw IllegalStateException("登录成功但网费首页不可用，请稍后重试")
         }
         app.saveZfwSession(username, home.name, cookie)
+        if (binding.checkRememberPassword.isChecked) {
+            app.store.saveZfwPassword(password)
+        } else {
+            app.store.clearZfwPassword()
+        }
         binding.inputPassword.text?.clear()
         app.requestHome()
-        if (!isFinishing) {
-            MaterialAlertDialogBuilder(this)
-                .setTitle("校园网登录成功")
-                .setMessage("已保存会话，下次打开网费时无需重复登录。")
-                .setPositiveButton("继续") { _, _ -> goNext() }
-                .setCancelable(false)
-                .show()
-        }
         setBusy(false, "登录成功")
+        if (!isFinishing) {
+            if (auto) {
+                Toast.makeText(this, "校园网已自动登录", Toast.LENGTH_SHORT).show()
+                goNext()
+            } else {
+                MaterialAlertDialogBuilder(this)
+                    .setTitle("校园网登录成功")
+                    .setMessage("已保存会话，下次打开网费时无需重复登录。")
+                    .setPositiveButton("继续") { _, _ -> goNext() }
+                    .setCancelable(false)
+                    .show()
+            }
+        }
     }
 
     private fun goNext() {
@@ -238,7 +366,6 @@ class ZfwLoginActivity : AppCompatActivity() {
 
     private fun showCaptcha() {
         binding.captchaRow.visibility = View.VISIBLE
-        loadCaptcha()
     }
 
     private fun loadCaptcha() {
@@ -285,6 +412,8 @@ class ZfwLoginActivity : AppCompatActivity() {
         binding.inputSms.isEnabled = !value
         binding.captchaImageBox.isEnabled = !value
         binding.btnWebLogin.isEnabled = !value
+        binding.checkRememberPassword.isEnabled = !value
+        binding.checkAutoLogin.isEnabled = !value
         if (!value) hideKeyboard()
     }
 
@@ -298,6 +427,11 @@ class ZfwLoginActivity : AppCompatActivity() {
         captchaJob?.cancel()
         binding.inputPassword.text?.clear()
         super.onDestroy()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(KEY_AUTO_ATTEMPTED, autoLoginAttempted)
     }
 
     private fun applyEdgeToEdgeInsets() {
@@ -320,5 +454,6 @@ class ZfwLoginActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_RECHARGE = "recharge"
+        const val KEY_AUTO_ATTEMPTED = "zfw_auto_login_attempted"
     }
 }

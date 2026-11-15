@@ -20,6 +20,7 @@ import cn.edu.buaa.scp.databinding.ActivityLoginBinding
 import cn.edu.buaa.scp.net.CasAuth
 import cn.edu.buaa.scp.net.Html
 import cn.edu.buaa.scp.net.SelfCheck
+import cn.edu.buaa.scp.store.LoginPolicy
 import cn.edu.buaa.scp.util.LogBus
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.CancellationException
@@ -41,6 +42,9 @@ class LoginActivity : AppCompatActivity() {
     private var pendingPage: CasAuth.LoginPage? = null
     private var captchaJob: Job? = null
 
+    /** 每次进入本页最多自动尝试一次，失败后交给用户手动完成。 */
+    private var autoLoginAttempted = false
+
     /** 只处理已证实的图片验证码；滑块等未知类型交给 CasAuth 给出提示。 */
     private val imageCaptcha: Html.Captcha?
         get() = pendingPage?.captcha?.takeIf { it.type == "image" }
@@ -53,7 +57,13 @@ class LoginActivity : AppCompatActivity() {
 
         applyEdgeToEdgeInsets()
         binding.tvVersion.text = "v${BuildConfig.VERSION_NAME}"
-        binding.inputStudent.setText(app.store.rememberedStudentId())
+        // 学号默认记住；旧版本未开启「记住学号」时回填已保存会话里的学号。
+        binding.inputStudent.setText(
+            app.store.rememberedStudentId().ifBlank { app.session?.studentId.orEmpty() },
+        )
+        setupCredentialOptions()
+        // 旋转/重建时不要重复自动提交密码。
+        autoLoginAttempted = savedInstanceState?.getBoolean(KEY_AUTO_ATTEMPTED, false) ?: false
 
         binding.btnLogin.setOnClickListener { startPasswordLogin() }
         binding.btnSelfCheck.setOnClickListener { runSelfCheck() }
@@ -111,6 +121,40 @@ class LoginActivity : AppCompatActivity() {
         )
     }
 
+    /**
+     * 「记住密码 / 自动登录」：学号总是记住，密码与自动登录由用户显式开启。
+     *
+     * 自动登录依赖记住密码；关闭记住密码会立即清除已保存的密码并关闭自动登录。
+     */
+    private fun setupCredentialOptions() {
+        val remember = app.store.casRememberPassword()
+        binding.checkRememberPassword.isChecked = remember
+        binding.checkAutoLogin.isChecked = app.store.casAutoLogin() && remember
+        if (remember) {
+            app.store.loadCasPassword()?.takeIf { it.isNotEmpty() }?.let {
+                binding.inputPassword.setText(it)
+            }
+        }
+
+        binding.checkRememberPassword.setOnCheckedChangeListener { _, checked ->
+            app.store.setCasRememberPassword(checked)
+            if (!checked && binding.checkAutoLogin.isChecked) {
+                binding.checkAutoLogin.isChecked = false
+            }
+        }
+        binding.checkAutoLogin.setOnCheckedChangeListener { _, checked ->
+            if (checked && !binding.checkRememberPassword.isChecked) {
+                binding.checkRememberPassword.isChecked = true
+            }
+            app.store.setCasAutoLogin(checked)
+        }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(KEY_AUTO_ATTEMPTED, autoLoginAttempted)
+    }
+
     /** 处理 Android 15 强制 edge-to-edge 的系统栏 insets（含软键盘）。 */
     private fun applyEdgeToEdgeInsets() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -127,11 +171,15 @@ class LoginActivity : AppCompatActivity() {
         ViewCompat.requestApplyInsets(binding.root)
     }
 
-    /** 启动时尝试免密恢复本地会话。 */
+    /** 启动时先尝试免密恢复本地会话；失败且已开启自动登录时再用保存的密码登录。 */
     private fun bootstrap() {
         val saved = app.session
         if (saved == null || !saved.hasAnything) {
-            setStatus("请输入学号与统一身份认证密码")
+            if (autoLoginReady() && !autoLoginAttempted) {
+                lifecycleScope.launch { tryAutoLogin() }
+            } else {
+                setStatus("请输入学号与统一身份认证密码")
+            }
             return
         }
         setBusy(true)
@@ -148,12 +196,119 @@ class LoginActivity : AppCompatActivity() {
             if (restored) {
                 app.markSynced()
                 goMain("会话已恢复")
-            } else {
+            } else if (!tryAutoLogin()) {
                 setBusy(false)
                 setStatus("登录已过期，请重新登录")
                 binding.inputPassword.requestFocus()
             }
         }
+    }
+
+    private fun autoLoginReady(): Boolean = LoginPolicy.canAutoLogin(
+        rememberPassword = app.store.casRememberPassword(),
+        autoLogin = app.store.casAutoLogin(),
+        account = binding.inputStudent.text?.toString()?.trim()
+            .orEmpty()
+            .ifEmpty { app.store.rememberedStudentId() },
+        password = app.store.loadCasPassword(),
+    )
+
+    /**
+     * 用本机保存的统一认证密码自动登录。
+     *
+     * @return 是否发起了自动登录（无论成功失败）；false 表示条件不满足，调用方继续展示手动登录。
+     */
+    private suspend fun tryAutoLogin(): Boolean {
+        if (autoLoginAttempted) return false
+        val studentId = binding.inputStudent.text?.toString()?.trim()
+            .orEmpty()
+            .ifEmpty { app.store.rememberedStudentId() }
+        val password = app.store.loadCasPassword() ?: return false
+        if (!LoginPolicy.canAutoLogin(
+                app.store.casRememberPassword(),
+                app.store.casAutoLogin(),
+                studentId,
+                password,
+            )
+        ) {
+            return false
+        }
+
+        autoLoginAttempted = true
+        binding.inputStudent.setText(studentId)
+        binding.inputPassword.setText(password)
+        hideCaptcha()
+        setBusy(true)
+        setStatus("正在自动登录…")
+        LogBus.step("使用本机保存的密码自动登录统一身份认证")
+        try {
+            when (val result = app.cas.login(studentId, password, null, "")) {
+                is CasAuth.Result.Success -> {
+                    setStatus("正在校验会话…")
+                    if (!app.validateSession()) {
+                        setBusy(false)
+                        setStatus("已通过认证，但校园卡会话不可用，请稍后重试")
+                        return true
+                    }
+                    app.rememberSession(studentId, result.openid)
+                    app.store.setRememberedStudentId(studentId)
+                    app.markSynced()
+                    goMain("已自动登录")
+                }
+
+                is CasAuth.Result.Failure -> onAutoLoginFailure(result)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // 网络等临时异常保留设置，下次启动仍可自动尝试。
+            LogBus.warn("自动登录异常：${SelfCheck.describe(e)}")
+            setBusy(false)
+            setStatus("自动登录失败：${SelfCheck.describe(e)}，请手动登录")
+        }
+        return true
+    }
+
+    /**
+     * 自动登录失败：一律关闭自动登录，避免每次启动重复提交。
+     *
+     * 服务端明确判定密码错误时清除保存的密码；验证码等需要用户介入的场景保留密码，
+     * 用户补齐验证码后可以直接继续登录。
+     */
+    private fun onAutoLoginFailure(result: CasAuth.Result.Failure) {
+        setBusy(false)
+        pendingPage = result.page
+        val captcha = imageCaptcha
+        val interaction = captcha != null || LoginPolicy.requiresInteraction(result.message)
+        val rejected = LoginPolicy.shouldForgetPassword(result.message, interaction)
+
+        app.store.setCasAutoLogin(false)
+        binding.checkAutoLogin.isChecked = false
+        if (rejected) {
+            app.store.setCasRememberPassword(false)
+            binding.checkRememberPassword.isChecked = false
+            binding.inputPassword.text?.clear()
+        }
+
+        if (captcha != null) {
+            showCaptcha()
+            binding.inputCaptcha.setText("")
+            loadCaptcha(captcha.id)
+            // 有验证码时上面不会判定为密码错误，密码保持可用，补齐验证码即可继续。
+            setStatus("已填入保存的账号密码，请输入验证码完成登录")
+            binding.inputCaptcha.requestFocus()
+        } else {
+            setStatus(
+                if (rejected) {
+                    "自动登录失败：${result.message}，已清除保存的密码，请手动登录"
+                } else {
+                    "自动登录失败：${result.message}，请手动登录"
+                },
+            )
+            binding.inputPassword.requestFocus()
+        }
+        // 软键盘可能把状态文字顶出屏幕，再用 Toast 明确告知自动登录已降级。
+        Toast.makeText(this, binding.tvStatus.text, Toast.LENGTH_LONG).show()
     }
 
     private fun startPasswordLogin() {
@@ -195,9 +350,11 @@ class LoginActivity : AppCompatActivity() {
                             return@launch
                         }
                         app.rememberSession(studentId, result.openid)
-                        app.store.setRememberedStudentId(
-                            if (binding.checkRemember.isChecked) studentId else "",
-                        )
+                        if (binding.checkRememberPassword.isChecked) {
+                            app.store.saveCasPassword(password)
+                        } else {
+                            app.store.clearCasPassword()
+                        }
                         app.markSynced()
                         goMain("登录成功")
                     }
@@ -323,7 +480,8 @@ class LoginActivity : AppCompatActivity() {
         binding.inputPassword.isEnabled = !value
         binding.inputCaptcha.isEnabled = !value
         binding.captchaImageBox.isEnabled = !value
-        binding.checkRemember.isEnabled = !value
+        binding.checkRememberPassword.isEnabled = !value
+        binding.checkAutoLogin.isEnabled = !value
     }
 
     private fun setStatus(text: String) {
@@ -339,5 +497,6 @@ class LoginActivity : AppCompatActivity() {
     private companion object {
         /** 仅 debug 构建：`adb shell am start ... -e demo true` 直接进入离线预览。 */
         const val EXTRA_DEMO = "demo"
+        const val KEY_AUTO_ATTEMPTED = "auto_login_attempted"
     }
 }

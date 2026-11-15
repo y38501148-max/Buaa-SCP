@@ -5,8 +5,8 @@ import org.json.JSONObject
 /**
  * 校园网自助服务（zfw.buaa.edu.cn）的会话快照。
  *
- * 校园网账号密码与统一身份认证是两套凭据；客户端不保存密码，只在首次使用时
- * 由用户在 WebView 里登录一次，然后保存登录后的 Cookie。
+ * 校园网账号密码与统一身份认证是两套凭据。密码默认不保存；用户显式开启
+ * 「记住密码」后由 SecureStore 加密保存。本快照只保存登录后的 Cookie。
  *
  * `cookie` 是 `name=value; name=value` 形式的原始 Cookie 头，整体加密落盘。
  */

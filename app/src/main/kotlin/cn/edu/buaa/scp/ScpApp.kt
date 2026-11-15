@@ -334,7 +334,10 @@ class ScpApp : Application() {
             zfwJar.clear()
             store.clearSession()
             store.clearZfwSession()
-            LogBus.step("已退出登录，本地会话已清除")
+            // 退出登录等于「忘记本机凭据」：密码与自动登录一并清除，学号仍保留。
+            store.setCasRememberPassword(false)
+            store.setZfwRememberPassword(false)
+            LogBus.step("已退出登录，本地会话与保存的密码已清除")
         }
     }
 

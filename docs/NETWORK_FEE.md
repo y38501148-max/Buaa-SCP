@@ -44,8 +44,9 @@ GET https://it.buaa.edu.cn/personal/frontend/data/items?type=personal_data
 - 密码使用页面每次随机下发的 RSA 公钥加密，部分账号还会触发短信验证码；
 - v0.5.0 起使用**原生登录页**（`ui/ZfwLoginActivity.kt`）：
   - 从官方登录页取每次随机下发的 1024-bit RSA 公钥与 CSRF token；
-  - 密码用 `RSA/ECB/PKCS1Padding` 加密后提交，客户端不保存密码；
-  - 支持图形验证码与短信二次验证；
+  - 密码用 `RSA/ECB/PKCS1Padding` 加密后提交，默认不保存；
+  - 可显式开启「记住密码」（AndroidKeyStore AES/GCM 加密）与「自动登录」；
+  - 支持图形验证码与短信二次验证；需要验证码时自动登录会降级为手动补全；
   - 失败/风控/页面改版时可一键回退到学校官方 WebView 登录；
 - 登录成功后把 zfw 域 Cookie（含 HttpOnly 的 `PHPSESSID_8800`）用 AndroidKeyStore 加密保存；
   之后原生 `GET /home` 只需该 Cookie 即可，重启 App 自动复用。
@@ -124,3 +125,7 @@ GET https://it.buaa.edu.cn/personal/frontend/data/items?type=personal_data
 - `net/ZfwPay.kt`：二维码 URL 解析
 - `ui/ZfwActivity.kt`：校园网登录 / 流量查看 / 充值 / 收银台接管
 - `store/ZfwSession.kt`：校园网会话加密持久化
+- `store/SecureStore.kt`：校园网密码加密保存与自动登录开关
+- `store/LoginPolicy.kt`：自动登录条件与失败分类
+
+更完整的登录、会话与自动登录说明见 [`LOGIN.md`](LOGIN.md)。

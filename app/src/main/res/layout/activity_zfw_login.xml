@@ -134,6 +134,37 @@
                         </com.google.android.material.textfield.TextInputLayout>
 
                         <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <CheckBox
+                                android:id="@+id/checkRememberPassword"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:buttonTint="@color/checkbox_tint"
+                                android:checked="false"
+                                android:minHeight="40dp"
+                                android:text="@string/login_remember_password"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="13sp" />
+
+                            <CheckBox
+                                android:id="@+id/checkAutoLogin"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="18dp"
+                                android:buttonTint="@color/checkbox_tint"
+                                android:checked="false"
+                                android:minHeight="40dp"
+                                android:text="@string/login_auto_login"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="13sp" />
+                        </LinearLayout>
+
+                        <LinearLayout
                             android:id="@+id/captchaRow"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"

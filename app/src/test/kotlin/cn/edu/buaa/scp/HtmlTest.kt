@@ -42,6 +42,24 @@ class HtmlTest {
     }
 
     @Test
+    fun errorMessage_lockWinsOverCredentials() {
+        val message = Html.errorMessage(
+            "<html><body><div>密码错误次数过多，账号已被锁定</div></body></html>",
+        )
+        assertNotNull(message)
+        assertTrue(message!!.contains("锁定"))
+    }
+
+    @Test
+    fun errorMessage_tooManyWinsOverCredentials() {
+        val message = Html.errorMessage(
+            "<html><body><div>密码错误，尝试过于频繁</div></body></html>",
+        )
+        assertNotNull(message)
+        assertTrue(message!!.contains("频繁"))
+    }
+
+    @Test
     fun captcha_nullOnPlainLoginPage() {
         assertNull(Html.captcha(TestFixtures.text("cas_login.html")))
     }

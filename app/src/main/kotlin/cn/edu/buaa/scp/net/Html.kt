@@ -84,6 +84,19 @@ object Html {
         val text = stripTags(html)
         val lower = text.lowercase()
 
+        // 锁定 / 禁用 / 频控优先于「密码错误」：锁定页常同时包含两种文案，
+        // 先判断凭据错误会让自动登录误删仍然正确的密码。
+        if (lower.contains("account locked") || text.contains("已锁定") || text.contains("锁定")) {
+            return "账号已被临时锁定，请稍后再试"
+        }
+        if (lower.contains("disabled") || text.contains("已禁用")) return "账号已被禁用"
+        if (lower.contains("too many") || text.contains("频繁") || text.contains("次数过多")) {
+            return "尝试过于频繁，请稍后再试"
+        }
+        if (lower.contains("expired") || text.contains("已过期")) {
+            return "密码或登录态已过期，请重新登录"
+        }
+
         val credentialsWrong = lower.contains("invalid credentials") ||
                 lower.contains("bad credentials") ||
                 text.contains("用户名或密码") ||
@@ -96,14 +109,6 @@ object Html {
         if (credentialsWrong) {
             return "账号或密码错误，请检查学号与统一身份认证密码"
         }
-        if (lower.contains("account locked") || text.contains("已锁定") || text.contains("锁定")) {
-            return "账号已被临时锁定，请稍后再试"
-        }
-        if (lower.contains("disabled") || text.contains("已禁用")) return "账号已被禁用"
-        if (lower.contains("expired") || text.contains("已过期")) {
-            return "密码或登录态已过期，请重新登录"
-        }
-        if (lower.contains("too many") || text.contains("频繁")) return "尝试过于频繁，请稍后再试"
         return null
     }
 

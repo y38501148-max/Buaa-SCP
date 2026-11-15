@@ -130,7 +130,7 @@ class MainActivity : AppCompatActivity() {
     fun confirmLogout() {
         MaterialAlertDialogBuilder(this)
             .setTitle("退出登录")
-            .setMessage("清除本机登录凭据后需重新登录。")
+            .setMessage("清除本机登录凭据、已保存的密码与自动登录状态后需重新登录。")
             .setNegativeButton("取消", null)
             .setPositiveButton("退出") { _, _ ->
                 app.logout()

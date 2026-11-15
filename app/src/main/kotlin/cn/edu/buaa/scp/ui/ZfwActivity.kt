@@ -38,7 +38,8 @@ import java.net.URLEncoder
  * - 查看/登录：打开 `/home`，若未登录则显示深澜登录页，用户用校园网账号登录；
  * - 网费充值：打开 `/pay/card`，登录后由官方页面处理金额、验证码与扫码支付。
  *
- * 客户端只负责保存登录后的 Cookie；不保存校园网密码，不接触支付。
+ * 本页只负责 WebView 登录与保存登录后的 Cookie，不接触密码输入与支付；
+ * 校园网原生登录、「记住密码 / 自动登录」见 ui/ZfwLoginActivity.kt。
  */
 class ZfwActivity : AppCompatActivity() {
 

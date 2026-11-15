@@ -170,22 +170,42 @@
                         android:textSize="11sp"
                         android:visibility="gone" />
 
-                    <CheckBox
-                        android:id="@+id/checkRemember"
-                        android:layout_width="wrap_content"
+                    <LinearLayout
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
-                        android:buttonTint="@color/brand_blue"
-                        android:checked="true"
-                        android:text="@string/login_remember"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="13sp" />
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <CheckBox
+                            android:id="@+id/checkRememberPassword"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:buttonTint="@color/checkbox_tint"
+                            android:checked="false"
+                            android:minHeight="40dp"
+                            android:text="@string/login_remember_password"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="13sp" />
+
+                        <CheckBox
+                            android:id="@+id/checkAutoLogin"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="18dp"
+                            android:buttonTint="@color/checkbox_tint"
+                            android:checked="false"
+                            android:minHeight="40dp"
+                            android:text="@string/login_auto_login"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="13sp" />
+                    </LinearLayout>
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnLogin"
                         android:layout_width="match_parent"
                         android:layout_height="54dp"
-                        android:layout_marginTop="8dp"
+                        android:layout_marginTop="10dp"
                         android:fontFamily="@font/noto_sans_sc_bold"
                         android:letterSpacing="0.08"
                         android:text="@string/login_button"
