@@ -11,10 +11,8 @@ import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import android.webkit.CookieManager
-import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
-import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import androidx.activity.OnBackPressedCallback
@@ -49,6 +47,7 @@ class ScanActivity : AppCompatActivity() {
     private var submitted = false
     private var torchOn = false
     private var web: WebView? = null
+    private var followUpClient: CardFollowUpClient? = null
     private val permission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) beginScan() else showPermission()
     }
@@ -59,7 +58,7 @@ class ScanActivity : AppCompatActivity() {
         if (!app.demoMode) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         root = Ui.column(this).apply { setBackgroundResource(R.color.bg) }
         val toolbar = MaterialToolbar(this).apply {
-            title = "扫一扫"
+            title = if (intent.hasExtra(EXTRA_FOLLOW_UP)) "继续处理" else "扫一扫"
             setTitleTextAppearance(this@ScanActivity, R.style.TextAppearance_Scp_Toolbar)
             setTitleTextColor(Ui.color(this@ScanActivity, R.color.text_primary))
             setNavigationIcon(R.drawable.ic_back)
@@ -107,7 +106,12 @@ class ScanActivity : AppCompatActivity() {
             }
         })
         submitted = savedInstanceState?.getBoolean("submitted") == true
-        if (submitted) showResult("请查看账单确认结果") else if (cameraAllowed()) beginScan()
+        val followUp = intent.getStringExtra(EXTRA_FOLLOW_UP)
+        if (submitted) showResult("请查看账单确认结果")
+        else if (followUp != null) {
+            submitted = true
+            openFollowUp(followUp)
+        } else if (cameraAllowed()) beginScan()
         else permission.launch(Manifest.permission.CAMERA)
     }
 
@@ -130,7 +134,7 @@ class ScanActivity : AppCompatActivity() {
                 torch.text = "打开手电筒"
                 val code = result.text.orEmpty()
                 if (code.isBlank() || code.length > 8192) {
-                    showResult("二维码内容无效")
+                    showResult("二维码内容无效", "重新扫描") { beginScan() }
                     return
                 }
                 MaterialAlertDialogBuilder(this@ScanActivity)
@@ -189,8 +193,11 @@ class ScanActivity : AppCompatActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun openFollowUp(url: String) {
+        if (!ScanOutcome.isTrustedPage(url)) { showResult("页面地址不受支持"); return }
         val sid = app.jar.valueOf("m.icw.buaa.edu.cn", "JSESSIONID").orEmpty()
-        if (sid.isBlank()) { showResult("会话已失效"); return }
+        val openid = app.openid()
+        if (sid.isBlank() || openid.isBlank()) { showResult("会话已失效"); return }
+        showResult("正在打开后续页面…", action = null)
         val page = WebView(this)
         web = page
         with(page.settings) {
@@ -202,34 +209,18 @@ class ScanActivity : AppCompatActivity() {
             cacheMode = WebSettings.LOAD_NO_CACHE
             userAgentString = cn.edu.buaa.scp.net.HttpEngine.UA
         }
-        page.webViewClient = object : WebViewClient() {
-            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-                val uri = request.url
-                return uri.scheme != "https" || uri.host != "m.icw.buaa.edu.cn" ||
-                    uri.port !in listOf(-1, 443) || !uri.path.orEmpty().startsWith("/card")
-            }
-
-            override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) {
-                val route = url?.substringAfter('#', "").orEmpty()
-                if (route.startsWith("/pages/common/success/")) {
-                    app.requestHomeRefresh()
-                    showResult("操作成功")
-                } else if (route.startsWith("/pages/common/fail/") || route.startsWith("/pages/common/error/")) {
-                    showResult(cn.edu.buaa.scp.net.Html.failPageMessage(url.orEmpty()) ?: "操作未完成")
-                }
-            }
-
-            override fun onReceivedError(view: WebView, request: WebResourceRequest, error: android.webkit.WebResourceError) {
-                if (request.isForMainFrame) showResult("页面加载失败")
-            }
-
-            override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, errorResponse: android.webkit.WebResourceResponse) {
-                if (request.isForMainFrame) showResult("页面加载失败（${errorResponse.statusCode}）")
-            }
-        }
-        CookieManager.getInstance().setCookie("https://m.icw.buaa.edu.cn", "JSESSIONID=$sid; Path=/; Secure; HttpOnly") {
+        page.visibility = View.INVISIBLE
+        followUpClient = CardFollowUpClient(openid, onReady = {
             if (!isDestroyed && !isFinishing) {
                 frame.removeAllViews()
+                frame.addView(page, FrameLayout.LayoutParams(-1, -1))
+            }
+        }, onResult = { message ->
+            app.requestHomeRefresh()
+            showResult(message)
+        }).also { page.webViewClient = it }
+        CookieManager.getInstance().setCookie("https://m.icw.buaa.edu.cn", "JSESSIONID=$sid; Path=/; Secure; HttpOnly") {
+            if (!isDestroyed && !isFinishing) {
                 frame.addView(page, FrameLayout.LayoutParams(-1, -1))
                 page.loadUrl(url)
             }
@@ -258,8 +249,13 @@ class ScanActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         scanner.pause()
+        followUpClient?.close()
         web?.apply { stopLoading(); destroy() }
         if (web != null) CookieManager.getInstance().setCookie("https://m.icw.buaa.edu.cn", "JSESSIONID=; Max-Age=0; Path=/")
         super.onDestroy()
+    }
+
+    companion object {
+        const val EXTRA_FOLLOW_UP = "card_follow_up"
     }
 }

@@ -16,8 +16,8 @@ android {
         applicationId = "cn.edu.buaa.scp"
         minSdk = 26
         targetSdk = 35
-        versionCode = 13
-        versionName = "0.8.0"
+        versionCode = 14
+        versionName = "0.8.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         resConfigs("zh", "en")
     }
@@ -48,6 +48,8 @@ android {
 
     buildTypes {
         debug {
+            // 模拟器回归可并存安装，保留原应用及会话。
+            if (project.hasProperty("isolatedTest")) applicationIdSuffix = ".testbed"
             versionNameSuffix = "-debug"
             isMinifyEnabled = false
         }

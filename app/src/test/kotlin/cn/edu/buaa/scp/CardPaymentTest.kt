@@ -75,7 +75,7 @@ class CardPaymentTest {
     }
 
     @Test fun rejectsUntrustedContinuationUrls() {
-        for (url in listOf("https://evil.example/", "//evil.example/", "/pages/../evil", "/pages/a?url=evil", "/pages/a#evil", "javascript:alert(1)", "/pages/a%2F..", "/pages/a\\evil")) {
+        for (url in listOf("https://evil.example/", "//evil.example/", "/pages/../evil", "/pages/a#evil", "javascript:alert(1)", "/pages/a%2F..", "/pages/a\\evil")) {
             assertThrows(IllegalArgumentException::class.java) { ScanOutcome.pageUrl(url, JSONObject(), "oid") }
         }
     }

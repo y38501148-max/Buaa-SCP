@@ -1,5 +1,28 @@
 # 验证记录
 
+## v0.8.1（2026-11-16）
+
+包名 `cn.edu.buaa.scp`，versionCode 14，versionName `0.8.1`。修复付款码后续页被丢弃、扫码密码页缺少 `openid`、内部路由查询参数被拒绝和无效码缺少重扫入口。按用户要求取消首页截图限制，扫码和后续确认页保留 `FLAG_SECURE`。
+
+源码与官方前端对照确认前两项功能缺陷和重扫问题；查询参数问题属于已补齐的兼容性风险，尚无真实服务端响应证明该格式已经出现。报告所述真实扣款或账实不一致没有得到验证。付款码的后续路由在响应顶层，扫码路由位于 `resultData`，本次分别处理。
+
+- JVM 单元测试共 156 项，148 通过、8 项真实网络测试按默认配置跳过，0 失败。新增 7 项覆盖轮询等待与后续页、响应数据保留、查询参数与身份覆盖、异常路由和导航边界。
+- Android 15 模拟器运行 `CardFollowUpTest` 6 项，全部通过。覆盖独立请求模块的身份初始化、延迟加载、特殊字符、成功/失败/错误回跳、初始终态页面、关闭后的迟到回调、外域拦截，以及官方模块结构不匹配时禁止显示表单。
+- 官方密码页浏览器验证：使用源码中的初始化脚本、假码 `TEST-QR` 和假密码 `123456`，在 `uni.request` 发送前拦截请求，另阻断 XHR/fetch。解密后 `/scan/scanningResult` 的正文和 URL 均带 `TESTOPENID`。仅写 `getApp().globalData` 和 storage 的对照试验仍提交空身份，证实还需初始化官方请求模块。
+- Debug / Release 构建、Lint 和 `git diff --check` 通过。测试宿主 Activity 仅编入 debug APK。
+
+复现 WebView 测试时使用独立包名，保留模拟器原应用及会话：
+
+```bash
+./gradlew :app:connectedDebugAndroidTest -PisolatedTest=1 \
+  -Pandroid.testInstrumentationRunnerArguments.class=cn.edu.buaa.scp.CardFollowUpTest
+./gradlew :app:testDebugUnitTest :app:assembleDebug :app:lintDebug :app:assembleRelease
+```
+
+本轮未连接用户实机，未进行真实扣款；付款码轮询由响应用例验证，官方密码页由拦截请求验证。无效码重扫与首页截图限制通过实现核查，未使用真实二维码触发扫描交易。原始日志和浏览器证据保存在工作区 `work/scp-qr-audit/`。
+
+安装包 `dist/TongCaiHang-v0.8.1-release.apk`，签名与 0.8.0 相同，可覆盖安装。SHA-256：`bbbc9870bf94ba83af830806cb29c26b5ec61708fbe3ded734d6cafb089d273d`。Lint 为 0 错误、81 警告。
+
 ## v0.8.0（2026-11-16）
 
 包名 `cn.edu.buaa.scp`，versionCode 13，versionName `0.8.0`。

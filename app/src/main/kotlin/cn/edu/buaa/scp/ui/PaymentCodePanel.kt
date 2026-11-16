@@ -1,5 +1,6 @@
 package cn.edu.buaa.scp.ui
 
+import android.content.Intent
 import android.graphics.Color
 import android.os.SystemClock
 import android.view.Gravity
@@ -11,6 +12,7 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import cn.edu.buaa.scp.R
 import cn.edu.buaa.scp.ScpApp
+import cn.edu.buaa.scp.net.ScanOutcome
 import cn.edu.buaa.scp.net.PaymentCode
 import cn.edu.buaa.scp.model.HomeModel
 import com.google.android.material.card.MaterialCardView
@@ -179,14 +181,21 @@ class PaymentCodePanel(
                                 catch (_: Exception) { null }
                             }
                             nextPoll = SystemClock.elapsedRealtime() + 3_000L
-                            if (order != null && (!order.optBoolean("success") || order.optString("url").isNotBlank())) {
+                            val outcome = order?.let { ScanOutcome.order(it, app.openid()) }
+                            if (outcome != null) {
                                 expiryJob?.cancel()
                                 clearCode()
-                                val success = order.optBoolean("success") &&
-                                    order.optString("url").startsWith("/pages/common/success/")
-                                message.text = if (success) "支付成功" else order.optString("message").ifBlank { "请查看账单确认结果" }
                                 status.text = ""
-                                onPayment()
+                                message.text = outcome.message
+                                if (outcome.followUp != null) {
+                                    // 先停止旧码循环，再把同一响应交给官方页面，避免重复打开或刷新付款码。
+                                    active = false
+                                    app.requestHomeRefresh()
+                                    fragment.startActivity(Intent(context, ScanActivity::class.java)
+                                        .putExtra(ScanActivity.EXTRA_FOLLOW_UP, outcome.followUp))
+                                } else {
+                                    onPayment()
+                                }
                                 return@launch
                             }
                         }

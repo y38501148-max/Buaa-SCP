@@ -126,11 +126,6 @@ class MainActivity : AppCompatActivity() {
         transaction.commitAllowingStateLoss()
         currentIndex = index
         binding.toolbar.menu.findItem(R.id.action_scan).isVisible = index == 0
-        if (index == 0 && !app.demoMode) {
-            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
-        } else {
-            window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
-        }
         binding.toolbar.setTitle(titleOf(index))
         if (syncBottomNav) {
             binding.bottomNav.menu.findItem(TAB_IDS[index]).isChecked = true
