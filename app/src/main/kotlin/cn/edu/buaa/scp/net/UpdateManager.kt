@@ -68,7 +68,7 @@ object UpdateManager {
         for (i in 0 until assets.length()) {
             val asset = assets.optJSONObject(i) ?: continue
             val assetName = asset.optString("name")
-            val url = asset.optString("browser_download_url")
+            val url = assetDownloadUrl(asset)
             when {
                 assetName.endsWith(".apk", ignoreCase = true) -> {
                     apkUrl = url
@@ -91,6 +91,14 @@ object UpdateManager {
             checksumUrl = checksumUrl,
             htmlUrl = json.optString("html_url"),
         )
+    }
+
+    internal fun assetDownloadUrl(asset: JSONObject): String {
+        val apiUrl = asset.optString("url")
+        // 官方资源 API 可直接转到下载 CDN，避免依赖 github.com 的网页下载入口。
+        return apiUrl.takeIf {
+            Regex("^https://api\\.github\\.com/repos/y38501148-max/Buaa-SCP/releases/assets/[0-9]+$").matches(it)
+        } ?: asset.optString("browser_download_url")
     }
 
     /** 语义化版本比较：返回 latest 是否比 current 新。 */
@@ -123,7 +131,7 @@ object UpdateManager {
         isCancelled: () -> Boolean,
         onProgress: (percent: Int, downloaded: Long, total: Long) -> Unit,
     ): DownloadResult {
-        val conn = open(info.apkUrl)
+        val conn = open(info.apkUrl, "application/octet-stream")
         var tmp: File? = null
         var done = false
         try {
@@ -174,7 +182,7 @@ object UpdateManager {
 
     fun verifyChecksum(info: UpdateInfo, file: File): Boolean {
         val url = info.checksumUrl ?: return true
-        val conn = open(url)
+        val conn = open(url, "application/octet-stream")
         val text = try {
             if (conn.responseCode !in 200..299) return false
             conn.inputStream.bufferedReader().use { it.readText() }
@@ -235,13 +243,13 @@ object UpdateManager {
         String.format(Locale.US, "%02x", it)
     }
 
-    private fun open(url: String): HttpURLConnection {
+    private fun open(url: String, accept: String = "application/vnd.github+json"): HttpURLConnection {
         val conn = URL(url).openConnection() as HttpURLConnection
         conn.connectTimeout = 10_000
         conn.readTimeout = 20_000
         conn.instanceFollowRedirects = true
         conn.setRequestProperty("User-Agent", "TongCaiHang/${BuildConfig.VERSION_NAME} (Android)")
-        conn.setRequestProperty("Accept", "application/vnd.github+json")
+        conn.setRequestProperty("Accept", accept)
         conn.setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
         conn.setRequestProperty("Accept-Encoding", "identity")
         return conn

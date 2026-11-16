@@ -8,6 +8,9 @@ import android.view.Gravity
 import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AlertDialog
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
 import cn.edu.buaa.scp.BuildConfig
@@ -18,11 +21,14 @@ import cn.edu.buaa.scp.net.UpdateInfo
 import cn.edu.buaa.scp.net.UpdateManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.progressindicator.LinearProgressIndicator
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.Locale
+import java.util.WeakHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** 应用内更新界面：检查、下载、校验后交给系统安装器。 */
@@ -33,23 +39,43 @@ object UpdateUi {
     private const val KEY_CHECKED_VERSION = "checked_version"
     private const val KEY_PENDING_VERSION = "pending_version"
     private const val KEY_SKIPPED_VERSION = "skipped_version"
-    private const val DAY_MS = 24L * 60 * 60 * 1000
+    private const val CHECK_INTERVAL_MS = 15L * 60 * 1000
 
-    @Volatile
-    private var checking = false
+    private class CheckState {
+        var job: Job? = null
+        var manualRequested = false
+        var progress: AlertDialog? = null
+        var updateDialog: AlertDialog? = null
+    }
 
-    @Volatile
-    private var dialogShowing = false
+    // 状态属于当前 Activity。旋转、退出登录或重建页面不会锁住新页面的检查入口。
+    private val checks = WeakHashMap<AppCompatActivity, CheckState>()
 
-    /** 启动时自动检查：每个应用版本首次启动 + 之后每天一次；检查失败不占用当次机会。 */
+    private fun stateFor(activity: AppCompatActivity): CheckState = checks.getOrPut(activity) {
+        CheckState().also { state ->
+            activity.lifecycle.addObserver(object : DefaultLifecycleObserver {
+                override fun onDestroy(owner: LifecycleOwner) {
+                    state.job?.cancel()
+                    state.progress?.dismiss()
+                    state.updateDialog?.dismiss()
+                    checks.remove(activity)
+                    owner.lifecycle.removeObserver(this)
+                }
+            })
+        }
+    }
+
+    /** 前台自动检查间隔 15 分钟；手动检查始终绕过间隔与跳过版本设置。 */
     fun autoCheck(activity: AppCompatActivity) {
         if (ScpApp.get(activity).demoMode) return
         val prefs = activity.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()
-        val sameVersion = prefs.getString(KEY_CHECKED_VERSION, "") == BuildConfig.VERSION_NAME
-        if (sameVersion && now - prefs.getLong(KEY_LAST_CHECK, 0L) < DAY_MS) return
+        if (!autoCheckDue(prefs.getString(KEY_CHECKED_VERSION, null), prefs.getLong(KEY_LAST_CHECK, 0L), now)) return
         check(activity, manual = false)
     }
+
+    internal fun autoCheckDue(checkedVersion: String?, lastCheck: Long, now: Long): Boolean =
+        checkedVersion != BuildConfig.VERSION_NAME || now - lastCheck !in 0 until CHECK_INTERVAL_MS
 
     /** 设置页展示的待更新版本；没有则返回 null。 */
     fun pendingVersion(context: Context): String? {
@@ -59,48 +85,101 @@ object UpdateUi {
         return version.takeIf { UpdateManager.isNewer(it, BuildConfig.VERSION_NAME) }
     }
 
-    fun check(activity: AppCompatActivity, manual: Boolean) {
-        if (checking) {
-            if (manual) toast(activity, "正在检查更新…")
+    fun check(activity: AppCompatActivity, manual: Boolean) =
+        check(activity, manual, UpdateManager::fetchLatest)
+
+    internal fun check(activity: AppCompatActivity, manual: Boolean, fetchLatest: () -> UpdateInfo?) {
+        if (activity.isFinishing || activity.isDestroyed) return
+        val state = stateFor(activity)
+        if (state.updateDialog?.isShowing == true) return
+        if (state.job?.isActive == true) {
+            if (manual) {
+                state.manualRequested = true
+                showCheckProgress(activity, state)
+            }
             return
         }
-        checking = true
-        activity.lifecycleScope.launch {
-            val result = withContext(Dispatchers.IO) {
-                runCatching { UpdateManager.fetchLatest() }
+        state.manualRequested = manual
+        val job = activity.lifecycleScope.launch(start = CoroutineStart.LAZY) {
+            val currentJob = coroutineContext[Job]
+            try {
+                val result = withContext(Dispatchers.IO) { runCatching { fetchLatest() } }
+                if (activity.isFinishing || activity.isDestroyed) return@launch
+                state.progress?.dismiss()
+                val requestedManually = state.manualRequested
+                if (result.isFailure) {
+                    val error = result.exceptionOrNull()!!
+                    cn.edu.buaa.scp.util.LogBus.warn("检查更新失败：${error.message ?: error.javaClass.simpleName}")
+                    if (requestedManually) showCheckError(activity, error)
+                    return@launch
+                }
+                val prefs = activity.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                prefs.edit()
+                    .putLong(KEY_LAST_CHECK, System.currentTimeMillis())
+                    .putString(KEY_CHECKED_VERSION, BuildConfig.VERSION_NAME)
+                    .apply()
+                val info = result.getOrNull()
+                if (info == null) {
+                    prefs.edit().remove(KEY_PENDING_VERSION).apply()
+                    if (requestedManually) toast(activity, "暂无可用版本")
+                    return@launch
+                }
+                if (!UpdateManager.isNewer(info.version, BuildConfig.VERSION_NAME)) {
+                    prefs.edit().remove(KEY_PENDING_VERSION).apply()
+                    if (requestedManually) toast(activity, "已是最新版本 v${BuildConfig.VERSION_NAME}")
+                    return@launch
+                }
+                prefs.edit().putString(KEY_PENDING_VERSION, info.version).apply()
+                val skipped = prefs.getString(KEY_SKIPPED_VERSION, null)
+                if (!requestedManually && skipped == info.version) return@launch
+                showUpdateDialog(activity, info)
+            } finally {
+                // 取消后的旧请求不能清掉新请求的状态或进度框。
+                if (state.job === currentJob) {
+                    state.job = null
+                    state.progress?.dismiss()
+                }
             }
-            checking = false
-            if (activity.isFinishing || activity.isDestroyed) return@launch
-            if (result.isFailure) {
-                if (manual) toast(activity, "检查更新失败，请检查网络")
-                return@launch
-            }
-            val prefs = activity.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            prefs.edit()
-                .putLong(KEY_LAST_CHECK, System.currentTimeMillis())
-                .putString(KEY_CHECKED_VERSION, BuildConfig.VERSION_NAME)
-                .apply()
-            val info = result.getOrNull()
-            if (info == null) {
-                prefs.edit().remove(KEY_PENDING_VERSION).apply()
-                if (manual) toast(activity, "暂无可用版本")
-                return@launch
-            }
-            if (!UpdateManager.isNewer(info.version, BuildConfig.VERSION_NAME)) {
-                prefs.edit().remove(KEY_PENDING_VERSION).apply()
-                if (manual) toast(activity, "已是最新版本 v${BuildConfig.VERSION_NAME}")
-                return@launch
-            }
-            prefs.edit().putString(KEY_PENDING_VERSION, info.version).apply()
-            val skipped = prefs.getString(KEY_SKIPPED_VERSION, null)
-            if (!manual && skipped == info.version) return@launch
-            showUpdateDialog(activity, info)
         }
+        state.job = job
+        if (manual) showCheckProgress(activity, state)
+        job.start()
+    }
+
+    private fun showCheckProgress(activity: AppCompatActivity, state: CheckState) {
+        if (state.progress?.isShowing == true) return
+        val dialog = MaterialAlertDialogBuilder(activity)
+            .setTitle("正在检查更新")
+            .setMessage("正在连接发布服务，请稍候…")
+            .setNegativeButton("取消") { _, _ -> state.job?.cancel() }
+            .setCancelable(false)
+            .create()
+        state.progress = dialog
+        dialog.setOnDismissListener { if (state.progress === dialog) state.progress = null }
+        dialog.show()
+    }
+
+    private fun showCheckError(activity: AppCompatActivity, error: Throwable) {
+        val state = stateFor(activity)
+        val dialog = MaterialAlertDialogBuilder(activity)
+            .setTitle("检查更新失败")
+            .setMessage("${error.message ?: "网络连接失败"}\n可以重试或在浏览器中查看最新版本。")
+            .setNegativeButton("关闭", null)
+            .setNeutralButton("浏览器打开") { _, _ -> openRelease(activity, null) }
+            .setPositiveButton("重试") { _, _ ->
+                state.updateDialog?.dismiss()
+                check(activity, manual = true)
+            }
+            .create()
+        state.updateDialog = dialog
+        dialog.setOnDismissListener { if (state.updateDialog === dialog) state.updateDialog = null }
+        dialog.show()
     }
 
     private fun showUpdateDialog(activity: AppCompatActivity, info: UpdateInfo) {
-        if (dialogShowing || activity.isFinishing) return
-        dialogShowing = true
+        if (activity.isFinishing || activity.isDestroyed) return
+        val state = stateFor(activity)
+        if (state.updateDialog?.isShowing == true) return
         val size = if (info.apkSize > 0) {
             String.format(Locale.US, " · %.1f MB", info.apkSize / 1024.0 / 1024.0)
         } else {
@@ -108,12 +187,11 @@ object UpdateUi {
         }
         val notes = info.notes.replace("\r", "").take(900)
         val message = "当前 v${BuildConfig.VERSION_NAME}$size" + if (notes.isBlank()) "" else "\n\n$notes"
-        MaterialAlertDialogBuilder(activity)
+        val dialog = MaterialAlertDialogBuilder(activity)
             .setTitle("发现新版本 v${info.version}")
             .setMessage(message)
-            .setNegativeButton("稍后") { _, _ -> dialogShowing = false }
+            .setNegativeButton("稍后", null)
             .setNeutralButton("跳过此版本") { _, _ ->
-                dialogShowing = false
                 activity.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                     .edit()
                     .putString(KEY_SKIPPED_VERSION, info.version)
@@ -121,11 +199,12 @@ object UpdateUi {
                     .apply()
             }
             .setPositiveButton("下载并安装") { _, _ ->
-                dialogShowing = false
                 downloadAndInstall(activity, info)
             }
-            .setOnCancelListener { dialogShowing = false }
-            .show()
+            .create()
+        state.updateDialog = dialog
+        dialog.setOnDismissListener { if (state.updateDialog === dialog) state.updateDialog = null }
+        dialog.show()
     }
 
     private fun downloadAndInstall(activity: AppCompatActivity, info: UpdateInfo) {
@@ -256,8 +335,8 @@ object UpdateUi {
             .show()
     }
 
-    private fun openRelease(activity: AppCompatActivity, info: UpdateInfo) {
-        val url = info.htmlUrl.ifBlank {
+    private fun openRelease(activity: AppCompatActivity, info: UpdateInfo?) {
+        val url = info?.htmlUrl.orEmpty().ifBlank {
             "https://github.com/y38501148-max/Buaa-SCP/releases"
         }
         runCatching {

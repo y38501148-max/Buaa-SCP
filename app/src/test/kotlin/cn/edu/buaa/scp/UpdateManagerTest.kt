@@ -60,4 +60,22 @@ class UpdateManagerTest {
             .put("assets", JSONArray())
         assertNull(UpdateManager.parse(json))
     }
+    @Test fun prefersOfficialAssetApiForApkAndChecksum() {
+        val prefix = "https://api.github.com/repos/y38501148-max/Buaa-SCP/releases/assets/"
+        val release = JSONObject().put("tag_name", "v0.8.2").put("assets", JSONArray()
+            .put(JSONObject().put("name", "app.apk").put("url", prefix + "12").put("browser_download_url", "https://github.com/app.apk"))
+            .put(JSONObject().put("name", "app.apk.sha256").put("url", prefix + "13").put("browser_download_url", "https://github.com/app.apk.sha256")))
+        val info = UpdateManager.parse(release)!!
+        assertEquals(prefix + "12", info.apkUrl)
+        assertEquals(prefix + "13", info.checksumUrl)
+    }
+
+    @Test fun ignoresUnrelatedOrMalformedAssetApiUrls() {
+        val fallback = "https://github.com/app.apk"
+        for (url in listOf("https://evil.test/asset", "http://api.github.com/repos/y38501148-max/Buaa-SCP/releases/assets/12",
+            "https://api.github.com/repos/other/repo/releases/assets/12", "https://api.github.com/repos/y38501148-max/Buaa-SCP/releases/assets/12?redirect=evil")) {
+            assertEquals(fallback, UpdateManager.assetDownloadUrl(JSONObject().put("url", url).put("browser_download_url", fallback)))
+        }
+    }
+
 }
